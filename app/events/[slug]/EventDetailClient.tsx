@@ -750,8 +750,10 @@ export default function EventDetailClient({ slug }: { slug: string }) {
                 </p>
               )}
 
-              {/* Paid tickets — hidden behind PAYMENTS_ENABLED */}
-              {PAYMENTS_ENABLED && !isPast && !event.isHost && (
+              {/* Paid tickets — hidden behind PAYMENTS_ENABLED. Hosts see the
+                  tier list too (so they can verify + test-purchase their own
+                  event); their free host-RSVP path below stays available. */}
+              {PAYMENTS_ENABLED && !isPast && (
                 <TicketPurchase
                   eventId={event.id}
                   slug={event.slug}
