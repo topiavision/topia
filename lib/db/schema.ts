@@ -777,9 +777,9 @@ export const tvEpisodes = pgTable('tv_episodes', {
 /* ════════════════════════════════════════════════════════════════════
  * TICKETED EVENTS — paid admission
  *
- * Three rail-agnostic tables back both payment rails:
- *   - Square  (fiat: cards, Apple/Google Pay, Cash App Pay)
- *   - Crypto  (USDC on Base, paid from the buyer's Privy/embedded wallet)
+ * Payments run through Stripe Checkout (cards, Apple/Google Pay, Link).
+ * Earlier rails (Square, USDC-on-Base) are retired; their columns remain on
+ * ticket_orders so historical rows stay readable.
  *
  * Money is stored in integer minor units (USD cents) everywhere to avoid
  * float rounding. Free events simply have no ticket types — RSVP stays the
@@ -817,20 +817,49 @@ export const ticketOrders = pgTable('ticket_orders', {
   unitPriceCents: integer('unit_price_cents').notNull(), // snapshot of tier price
   amountCents: integer('amount_cents').notNull(),        // unitPriceCents * quantity
   currency: text('currency').notNull().default('USD'),
-  rail: text('rail').notNull(),                          // 'square' | 'crypto'
+  rail: text('rail').notNull(),                          // 'stripe' (legacy rows: 'square' | 'crypto')
   status: text('status').notNull().default('pending'),   // 'pending'|'paid'|'failed'|'refunded'|'cancelled'
   buyerEmail: text('buyer_email'),
-  // ── Square (fiat) ──
+  // ── Promo code (snapshot at purchase; amountCents is already discounted) ──
+  promoCodeId: uuid('promo_code_id').references(() => eventPromoCodes.id),
+  promoCode: text('promo_code'),                         // the literal code used, for receipts/reports
+  discountCents: integer('discount_cents').notNull().default(0),
+  // ── Stripe ──
+  stripeCheckoutSessionId: text('stripe_checkout_session_id'),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  // ── Legacy rails (Square / USDC-on-Base) — kept for historical orders ──
   squarePaymentId: text('square_payment_id'),
   squareOrderId: text('square_order_id'),
-  // ── Crypto (USDC on Base) ──
   txHash: text('tx_hash'),
-  chainId: integer('chain_id'),                          // 8453 = Base mainnet
+  chainId: integer('chain_id'),
   payerWalletAddress: text('payer_wallet_address'),
   recipientWalletAddress: text('recipient_wallet_address'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+// Host-managed discount codes, e.g. EARLYBIRD (20% off) or FRIENDS10 ($10 off).
+// Scoped to one event; optionally restricted to a single tier. `code` is stored
+// uppercase and matched case-insensitively. Redemptions count paid orders only
+// (incremented inside fulfillOrder's transaction, so it never double-counts).
+export const eventPromoCodes = pgTable('event_promo_codes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  eventId: uuid('event_id').references(() => events.id, { onDelete: 'cascade' }).notNull(),
+  ticketTypeId: uuid('ticket_type_id').references(() => eventTicketTypes.id, { onDelete: 'cascade' }), // null = any tier
+  code: text('code').notNull(),                          // stored UPPERCASE
+  discountType: text('discount_type').notNull(),         // 'percent' | 'fixed'
+  discountValue: integer('discount_value').notNull(),    // percent: 1–100 · fixed: USD cents off the order
+  maxRedemptions: integer('max_redemptions'),            // null = unlimited
+  redemptionCount: integer('redemption_count').notNull().default(0),
+  startsAt: timestamp('starts_at'),                      // null = active immediately
+  expiresAt: timestamp('expires_at'),                    // null = never expires
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('event_promo_codes_event_id_idx').on(t.eventId),
+  uniqueIndex('event_promo_codes_event_code_idx').on(t.eventId, t.code),
+]);
 
 // Individual issued admissions — one row per seat. Created when an order is
 // paid. `code` is the unique value encoded into a QR for door check-in.

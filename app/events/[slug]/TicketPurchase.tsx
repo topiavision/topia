@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { encodeFunctionData, parseAbi, numberToHex } from 'viem';
+import { useEffect, useState, useCallback } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 
@@ -20,65 +19,45 @@ interface TicketType {
   soldOut: boolean;
 }
 
-type Rail = 'square' | 'crypto';
-type Phase = 'idle' | 'paying' | 'confirming' | 'success' | 'error';
+type PromoState =
+  | { status: 'none' }
+  | { status: 'checking' }
+  | { status: 'applied'; code: string; discountCents: number; totalCents: number }
+  | { status: 'invalid'; error: string };
 
-// Minimal shape of the Square Web Payments SDK we use.
-type SquareCard = { attach: (sel: string) => Promise<void>; tokenize: () => Promise<{ status: string; token?: string; errors?: { message: string }[] }> };
-type SquarePayments = { card: () => Promise<SquareCard> };
-declare global {
-  interface Window {
-    Square?: { payments: (appId: string, locationId: string) => SquarePayments };
-  }
-}
-
-const ERC20_ABI = parseAbi(['function transfer(address to, uint256 value) returns (bool)']);
-
-const SQUARE_APP_ID = process.env.NEXT_PUBLIC_SQUARE_APPLICATION_ID ?? '';
-const SQUARE_LOCATION_ID = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID ?? '';
-const SQUARE_CONFIGURED = Boolean(SQUARE_APP_ID && SQUARE_LOCATION_ID);
-// Sandbox application IDs are prefixed "sandbox-"; pick the matching SDK CDN.
-const SQUARE_SDK_URL = SQUARE_APP_ID.startsWith('sandbox-')
-  ? 'https://sandbox.web.squarecdn.com/v1/square.js'
-  : 'https://web.squarecdn.com/v1/square.js';
+// idle → redirecting (handing off to Stripe) · confirming (back from Stripe,
+// polling the order) · success / error are terminal until closed.
+type Phase = 'idle' | 'redirecting' | 'confirming' | 'success' | 'error';
 
 function usd(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-/* ── Square SDK loader ─────────────────────────────────────────────── */
-
-let squareScriptPromise: Promise<void> | null = null;
-function loadSquareSdk(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
-  if (window.Square) return Promise.resolve();
-  if (squareScriptPromise) return squareScriptPromise;
-  squareScriptPromise = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = SQUARE_SDK_URL;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Failed to load Square SDK'));
-    document.head.appendChild(s);
-  });
-  return squareScriptPromise;
-}
-
 /* ── Component ─────────────────────────────────────────────────────── */
 
+// Buyer-facing ticket purchase. Card payments run through Stripe-hosted
+// Checkout: we create the order server-side, redirect to Stripe, and Stripe
+// redirects back here with ?checkout=success&order=<id>, where we poll the
+// status endpoint until the webhook (or the endpoint's own fallback) confirms
+// payment. No card data ever touches this app.
 export default function TicketPurchase({ eventId, slug }: { eventId: string; slug: string }) {
-  const { authenticated, user, login } = usePrivy();
-  const { wallets } = useWallets();
+  void eventId; // tiers are keyed by slug; kept for parity with other event widgets
+  const { ready, authenticated, user, login } = usePrivy();
 
   const [tiers, setTiers] = useState<TicketType[] | null>(null);
   const [selected, setSelected] = useState<TicketType | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [rail, setRail] = useState<Rail>('square');
   const [phase, setPhase] = useState<Phase>('idle');
   const [message, setMessage] = useState('');
+  const [notice, setNotice] = useState(''); // non-modal banner (e.g. cancelled checkout)
   const [result, setResult] = useState<{ ticketCount: number } | null>(null);
 
-  const cardRef = useRef<SquareCard | null>(null);
-  const cardMountRef = useRef<HTMLDivElement | null>(null);
+  // Promo code entry.
+  const [promoInput, setPromoInput] = useState('');
+  const [promo, setPromo] = useState<PromoState>({ status: 'none' });
+
+  // Post-redirect confirmation (order id from the success URL).
+  const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
 
   // Load tiers for this event.
   useEffect(() => {
@@ -88,27 +67,68 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
       .catch(() => setTiers([]));
   }, [slug]);
 
-  // Mount the Square card iframe when the Square rail is chosen in the modal.
+  // Detect the return leg from Stripe Checkout and clean the URL so refreshes
+  // don't re-trigger it.
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get('checkout');
+    const order = params.get('order');
+    if (!checkout) return;
+    if (checkout === 'success' && order) {
+      setReturnOrderId(order);
+      setPhase('confirming');
+    } else if (checkout === 'cancelled') {
+      setNotice('Checkout cancelled — your card was not charged.');
+    }
+    params.delete('checkout');
+    params.delete('order');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, []);
+
+  // Poll the order after returning from Stripe. The webhook usually lands
+  // within seconds; the status endpoint also self-heals if it didn't.
+  useEffect(() => {
+    if (!returnOrderId || !ready) return;
+    if (!authenticated || !user?.id) return; // wait for Privy to restore the session
     let cancelled = false;
-    if (!selected || rail !== 'square' || !SQUARE_CONFIGURED) return;
     (async () => {
-      try {
-        await loadSquareSdk();
-        if (cancelled || !window.Square || !cardMountRef.current) return;
-        const payments = window.Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
-        const card = await payments.card();
-        await card.attach('#square-card-mount');
-        if (!cancelled) cardRef.current = card;
-      } catch {
-        if (!cancelled) setMessage('Could not load the card form.');
+      for (let i = 0; i < 15 && !cancelled; i++) {
+        try {
+          const res = await fetch(
+            `/api/checkout/stripe/status?orderId=${encodeURIComponent(returnOrderId)}&privyId=${encodeURIComponent(user.id)}`,
+          );
+          const d = await res.json();
+          if (res.ok && d.status === 'paid') {
+            if (!cancelled) {
+              setResult({ ticketCount: d.ticketCount });
+              setPhase('success');
+            }
+            return;
+          }
+          if (res.ok && (d.status === 'cancelled' || d.status === 'failed')) {
+            if (!cancelled) {
+              setPhase('idle');
+              setNotice('That checkout didn’t complete — your card was not charged.');
+              setReturnOrderId(null);
+            }
+            return;
+          }
+        } catch {
+          /* transient — keep polling */
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      if (!cancelled) {
+        setPhase('idle');
+        setNotice('Payment received? It’s taking a moment to confirm — check your email for your tickets.');
+        setReturnOrderId(null);
       }
     })();
     return () => {
       cancelled = true;
-      cardRef.current = null;
     };
-  }, [selected, rail]);
+  }, [returnOrderId, ready, authenticated, user?.id]);
 
   const close = useCallback(() => {
     setSelected(null);
@@ -116,7 +136,9 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
     setMessage('');
     setResult(null);
     setQuantity(1);
-    cardRef.current = null;
+    setPromoInput('');
+    setPromo({ status: 'none' });
+    setReturnOrderId(null);
   }, []);
 
   const openFor = (tier: TicketType) => {
@@ -124,123 +146,91 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
       login();
       return;
     }
+    setNotice('');
     setSelected(tier);
     setQuantity(1);
-    setRail(SQUARE_CONFIGURED ? 'square' : 'crypto');
     setPhase('idle');
     setMessage('');
     setResult(null);
+    setPromoInput('');
+    setPromo({ status: 'none' });
   };
 
-  /* ── Square charge ──────────────────────────────────────────────── */
-  const paySquare = async () => {
-    if (!selected || !user?.id) return;
-    if (!cardRef.current) {
-      setMessage('Card form is still loading…');
-      return;
+  // Quantity changes invalidate an applied promo preview (fixed discounts
+  // don't scale) — re-validate against the new subtotal.
+  const changeQuantity = (next: number) => {
+    setQuantity(next);
+    if (promo.status === 'applied' || promo.status === 'invalid') setPromo({ status: 'none' });
+  };
+
+  const applyPromo = async () => {
+    if (!selected || !promoInput.trim()) return;
+    setPromo({ status: 'checking' });
+    try {
+      const res = await fetch('/api/events/promo-codes/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketTypeId: selected.id, code: promoInput, quantity }),
+      });
+      const d = await res.json();
+      if (res.ok && d.valid) {
+        setPromo({ status: 'applied', code: d.code, discountCents: d.discountCents, totalCents: d.totalCents });
+      } else {
+        setPromo({ status: 'invalid', error: d.error ?? 'That code isn’t valid' });
+      }
+    } catch {
+      setPromo({ status: 'invalid', error: 'Could not check that code — try again.' });
     }
-    setPhase('paying');
+  };
+
+  const pay = async () => {
+    if (!selected || !user?.id) return;
+    setPhase('redirecting');
     setMessage('');
     try {
-      const tok = await cardRef.current.tokenize();
-      if (tok.status !== 'OK' || !tok.token) {
-        throw new Error(tok.errors?.[0]?.message ?? 'Card was declined');
-      }
-      const res = await fetch('/api/checkout/square', {
+      const res = await fetch('/api/checkout/stripe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           privyId: user.id,
           ticketTypeId: selected.id,
           quantity,
-          sourceId: tok.token,
+          promoCode: promo.status === 'applied' ? promo.code : undefined,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Payment failed');
-      setResult({ ticketCount: data.ticketCount ?? quantity });
-      setPhase('success');
+      if (!res.ok) throw new Error(data.error ?? 'Checkout failed');
+      if (data.free) {
+        // Free tier or fully discounted — issued instantly, no Stripe leg.
+        setResult({ ticketCount: data.ticketCount ?? quantity });
+        setPhase('success');
+        return;
+      }
+      if (!data.url) throw new Error('Checkout failed — try again.');
+      window.location.href = data.url; // off to Stripe-hosted Checkout
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Payment failed');
+      setMessage(e instanceof Error ? e.message : 'Checkout failed');
       setPhase('error');
     }
   };
 
-  /* ── USDC on Base ───────────────────────────────────────────────── */
-  const payCrypto = async () => {
-    if (!selected || !user?.id) return;
-    const wallet = wallets[0];
-    if (!wallet) {
-      setMessage('Connect a wallet to pay with USDC.');
-      setPhase('error');
-      return;
-    }
-    setPhase('paying');
-    setMessage('');
-    try {
-      // 1. Create the pending order; server returns the exact transfer to make.
-      const initRes = await fetch('/api/checkout/crypto', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyId: user.id, ticketTypeId: selected.id, quantity }),
-      });
-      const init = await initRes.json();
-      if (!initRes.ok) throw new Error(init.error ?? 'Could not start checkout');
-      const { orderId, payment } = init;
+  // Nothing to show for unticketed events — unless we're confirming a
+  // just-completed purchase (tiers may still be loading on the return leg).
+  const confirmingReturn = phase === 'confirming' || (phase === 'success' && returnOrderId != null);
+  if ((!tiers || tiers.length === 0) && !confirmingReturn) return null;
 
-      // 2. Send the USDC transfer from the user's wallet.
-      const provider = await wallet.getEthereumProvider();
-      const targetChain = numberToHex(payment.chainId);
-      try {
-        await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: targetChain }] });
-      } catch {
-        /* wallet may already be on the right chain, or reject — let the tx surface it */
-      }
-      const data = encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: 'transfer',
-        args: [payment.recipient as `0x${string}`, BigInt(payment.amountBaseUnits)],
-      });
-      const txHash = (await provider.request({
-        method: 'eth_sendTransaction',
-        params: [{ from: wallet.address, to: payment.token, data }],
-      })) as string;
-
-      // 3. Poll the confirm endpoint until the tx is mined + verified.
-      setPhase('confirming');
-      let confirmed = false;
-      for (let i = 0; i < 30 && !confirmed; i++) {
-        const cRes = await fetch('/api/checkout/crypto/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ privyId: user.id, orderId, txHash }),
-        });
-        const c = await cRes.json();
-        if (cRes.ok && c.ok) {
-          setResult({ ticketCount: c.ticketCount ?? quantity });
-          setPhase('success');
-          confirmed = true;
-        } else if (cRes.status === 202) {
-          await new Promise((r) => setTimeout(r, 3000)); // not mined yet
-        } else {
-          throw new Error(c.error ?? 'Could not verify payment');
-        }
-      }
-      if (!confirmed) throw new Error('Payment is taking longer than expected. Check back shortly.');
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Payment failed';
-      setMessage(/user rejected|denied/i.test(msg) ? 'Transaction cancelled.' : msg);
-      setPhase('error');
-    }
-  };
-
-  // Nothing to show for free / unticketed events.
-  if (!tiers || tiers.length === 0) return null;
-
-  const totalCents = selected ? selected.priceCents * quantity : 0;
+  const subtotalCents = selected ? selected.priceCents * quantity : 0;
+  const totalCents = promo.status === 'applied' ? promo.totalCents : subtotalCents;
   const maxQty = selected
     ? Math.min(selected.maxPerOrder ?? 10, selected.remaining ?? selected.maxPerOrder ?? 10)
     : 1;
+
+  const payLabel =
+    phase === 'redirecting'
+      ? 'Opening secure checkout…'
+      : totalCents === 0
+        ? 'Get ticket'
+        : `Pay ${usd(totalCents)}`;
 
   return (
     <div className="mb-8">
@@ -248,8 +238,14 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
         Tickets
       </p>
 
+      {notice && (
+        <p className="font-mono text-[12px] mb-3 px-3 py-2 rounded-lg border" style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)', opacity: 0.8 }}>
+          {notice}
+        </p>
+      )}
+
       <div className="space-y-2">
-        {tiers.map((t) => (
+        {(tiers ?? []).map((t) => (
           <div
             key={t.id}
             className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border"
@@ -287,6 +283,36 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
         ))}
       </div>
 
+      {/* Post-redirect confirmation (no tier modal open) */}
+      {!selected && (phase === 'confirming' || phase === 'success') && (
+        <div className="fixed inset-0 z-[2100] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 border text-center" style={{ backgroundColor: 'var(--background)', borderColor: 'var(--border-color)' }}>
+            {phase === 'confirming' ? (
+              <>
+                <p className="font-mono text-[15px] font-bold mb-2" style={{ color: 'var(--foreground)' }}>
+                  Confirming your payment…
+                </p>
+                <p className="font-mono text-[13px] opacity-70" style={{ color: 'var(--foreground)' }}>
+                  Hang tight — this usually takes a few seconds.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-mono text-[15px] font-bold mb-2" style={{ color: 'var(--foreground)' }}>
+                  You&apos;re in 🎟️
+                </p>
+                <p className="font-mono text-[13px] opacity-70 mb-6" style={{ color: 'var(--foreground)' }}>
+                  {result?.ticketCount ?? 1} ticket{(result?.ticketCount ?? 1) > 1 ? 's' : ''} confirmed. A receipt is on its way to your email.
+                </p>
+                <button onClick={close} className="w-full px-4 py-3 font-mono text-[12px] uppercase tracking-widest rounded-lg cursor-pointer border-none font-bold" style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}>
+                  Done
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Checkout modal */}
       {selected && (
         <div className="fixed inset-0 z-[2100] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
@@ -319,45 +345,69 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
                 <div className="flex items-center justify-between mb-4">
                   <span className="font-mono text-[13px]" style={{ color: 'var(--foreground)' }}>Quantity</span>
                   <div className="flex items-center gap-3">
-                    <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-8 h-8 rounded-lg border font-mono cursor-pointer bg-transparent" style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}>−</button>
+                    <button onClick={() => changeQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 rounded-lg border font-mono cursor-pointer bg-transparent" style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}>−</button>
                     <span className="font-mono text-[14px] w-6 text-center" style={{ color: 'var(--foreground)' }}>{quantity}</span>
-                    <button onClick={() => setQuantity((q) => Math.min(maxQty, q + 1))} className="w-8 h-8 rounded-lg border font-mono cursor-pointer bg-transparent" style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}>+</button>
+                    <button onClick={() => changeQuantity(Math.min(maxQty, quantity + 1))} className="w-8 h-8 rounded-lg border font-mono cursor-pointer bg-transparent" style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}>+</button>
                   </div>
                 </div>
 
                 {selected.priceCents > 0 && (
                   <>
-                    {/* Rail toggle */}
-                    <div className="flex gap-2 mb-4">
-                      {(['square', 'crypto'] as Rail[]).map((r) => {
-                        const disabled = r === 'square' && !SQUARE_CONFIGURED;
-                        return (
-                          <button
-                            key={r}
-                            disabled={disabled}
-                            onClick={() => setRail(r)}
-                            className="flex-1 px-3 py-2 font-mono text-[11px] uppercase tracking-widest rounded-lg cursor-pointer transition border disabled:opacity-30 disabled:cursor-not-allowed"
-                            style={rail === r
-                              ? { backgroundColor: 'var(--foreground)', color: 'var(--background)', borderColor: 'var(--foreground)' }
-                              : { backgroundColor: 'transparent', color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
-                          >
-                            {r === 'square' ? 'Card' : 'USDC'}
-                          </button>
-                        );
-                      })}
+                    {/* Promo code */}
+                    <div className="mb-4">
+                      <div className="flex gap-2">
+                        <input
+                          value={promoInput}
+                          onChange={(e) => {
+                            setPromoInput(e.target.value.toUpperCase());
+                            if (promo.status !== 'none') setPromo({ status: 'none' });
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') applyPromo(); }}
+                          placeholder="Promo code"
+                          className="flex-1 min-w-0 px-3 py-2 font-mono text-[13px] uppercase rounded-lg border bg-transparent"
+                          style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
+                        />
+                        <button
+                          onClick={applyPromo}
+                          disabled={promo.status === 'checking' || !promoInput.trim()}
+                          className="px-4 py-2 font-mono text-[11px] uppercase tracking-widest rounded-lg border cursor-pointer bg-transparent disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                          style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
+                        >
+                          {promo.status === 'checking' ? '…' : 'Apply'}
+                        </button>
+                      </div>
+                      {promo.status === 'applied' && (
+                        <p className="font-mono text-[12px] mt-2" style={{ color: 'var(--foreground)' }}>
+                          <span style={{ color: '#2fbf71' }}>✓ {promo.code}</span>
+                          <span className="opacity-70"> — you save {usd(promo.discountCents)}</span>
+                        </p>
+                      )}
+                      {promo.status === 'invalid' && (
+                        <p className="font-mono text-[12px] mt-2" style={{ color: '#ff6b6b' }}>{promo.error}</p>
+                      )}
                     </div>
 
-                    {rail === 'square' ? (
-                      SQUARE_CONFIGURED ? (
-                        <div id="square-card-mount" ref={cardMountRef} className="mb-4 min-h-[44px] rounded-lg border px-2 py-1" style={{ borderColor: 'var(--border-color)' }} />
-                      ) : (
-                        <p className="font-mono text-[12px] opacity-60 mb-4" style={{ color: 'var(--foreground)' }}>
-                          Card payments aren&apos;t configured yet. Add your Square keys to enable them.
-                        </p>
-                      )
-                    ) : (
-                      <p className="font-mono text-[12px] opacity-60 mb-4" style={{ color: 'var(--foreground)' }}>
-                        Pay {usd(totalCents)} in USDC on Base from your connected wallet.
+                    {/* Order summary */}
+                    <div className="mb-4 space-y-1 font-mono text-[12px]" style={{ color: 'var(--foreground)' }}>
+                      <div className="flex justify-between opacity-70">
+                        <span>{quantity} × {selected.name}</span>
+                        <span>{usd(subtotalCents)}</span>
+                      </div>
+                      {promo.status === 'applied' && (
+                        <div className="flex justify-between opacity-70">
+                          <span>Promo {promo.code}</span>
+                          <span>−{usd(promo.discountCents)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-bold pt-1 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                        <span>Total</span>
+                        <span>{totalCents === 0 ? 'Free' : usd(totalCents)}</span>
+                      </div>
+                    </div>
+
+                    {totalCents > 0 && (
+                      <p className="font-mono text-[11px] opacity-50 mb-4" style={{ color: 'var(--foreground)' }}>
+                        You&apos;ll be taken to Stripe&apos;s secure checkout to pay by card, Apple Pay or Google Pay.
                       </p>
                     )}
                   </>
@@ -368,15 +418,12 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
                 )}
 
                 <button
-                  onClick={selected.priceCents === 0 ? paySquare : rail === 'square' ? paySquare : payCrypto}
-                  disabled={phase === 'paying' || phase === 'confirming' || (rail === 'square' && selected.priceCents > 0 && !SQUARE_CONFIGURED)}
+                  onClick={pay}
+                  disabled={phase === 'redirecting'}
                   className="w-full px-4 py-3 font-mono text-[12px] uppercase tracking-widest rounded-lg cursor-pointer border-none font-bold disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}
                 >
-                  {phase === 'paying' ? 'Processing…'
-                    : phase === 'confirming' ? 'Confirming on-chain…'
-                    : selected.priceCents === 0 ? 'Get ticket'
-                    : `Pay ${usd(totalCents)}`}
+                  {payLabel}
                 </button>
               </>
             )}

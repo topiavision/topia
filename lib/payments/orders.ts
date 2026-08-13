@@ -1,10 +1,11 @@
-// Shared order creation for both rails. Validates the tier, checks supply, and
-// snapshots the price into a 'pending' order. The Square and crypto checkout
-// routes both start here, then attach rail-specific payment handling.
+// Shared order creation. Validates the tier, checks supply, applies any promo
+// code, and snapshots the final price into a 'pending' order. The Stripe
+// checkout route starts here, then attaches the Checkout Session.
 import { eq } from 'drizzle-orm';
 import { db, eventTicketTypes, ticketOrders, users } from '@/lib/db';
+import { checkPromoCode } from './promo';
 
-export type Rail = 'square' | 'crypto';
+export type Rail = 'stripe';
 
 export type CreateOrderInput = {
   privyId: string;
@@ -12,13 +13,14 @@ export type CreateOrderInput = {
   quantity: number;
   rail: Rail;
   buyerEmail?: string;
+  promoCode?: string;
 };
 
 type Tier = typeof eventTicketTypes.$inferSelect;
 type Order = typeof ticketOrders.$inferSelect;
 
 export type CreateOrderResult =
-  | { ok: true; order: Order; tier: Tier; buyer: { id: string; email: string | null; walletAddress: string | null } }
+  | { ok: true; order: Order; tier: Tier; buyer: { id: string; email: string | null } }
   | { ok: false; status: number; error: string };
 
 export async function createPendingOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
@@ -31,7 +33,7 @@ export async function createPendingOrder(input: CreateOrderInput): Promise<Creat
   }
 
   const [buyer] = await db
-    .select({ id: users.id, email: users.email, walletAddress: users.walletAddress })
+    .select({ id: users.id, email: users.email })
     .from(users)
     .where(eq(users.privyId, input.privyId));
   if (!buyer) return { ok: false, status: 404, error: 'User not found' };
@@ -60,7 +62,27 @@ export async function createPendingOrder(input: CreateOrderInput): Promise<Creat
   }
 
   const unitPriceCents = tier.priceCents;
-  const amountCents = unitPriceCents * quantity;
+  const subtotalCents = unitPriceCents * quantity;
+
+  // Promo code — resolved server-side; the snapshot on the order is what the
+  // buyer is actually charged.
+  let promoCodeId: string | null = null;
+  let promoCode: string | null = null;
+  let discountCents = 0;
+  if (input.promoCode?.trim() && subtotalCents > 0) {
+    const check = await checkPromoCode({
+      eventId: tier.eventId,
+      code: input.promoCode,
+      ticketTypeId: tier.id,
+      subtotalCents,
+    });
+    if (!check.ok) return { ok: false, status: 400, error: check.error };
+    promoCodeId = check.promo.id;
+    promoCode = check.promo.code;
+    discountCents = check.discountCents;
+  }
+
+  const amountCents = subtotalCents - discountCents;
 
   const [order] = await db
     .insert(ticketOrders)
@@ -75,6 +97,9 @@ export async function createPendingOrder(input: CreateOrderInput): Promise<Creat
       rail: input.rail,
       status: 'pending',
       buyerEmail: input.buyerEmail ?? buyer.email ?? null,
+      promoCodeId,
+      promoCode,
+      discountCents,
     })
     .returning();
 

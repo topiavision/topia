@@ -58,14 +58,13 @@ We may investigate and take any action we deem appropriate, including removing c
 
 ## 6. Payments, Tickets & Digital Assets
 
-Some features let you buy or sell tickets and other items. Payments may be processed in **fiat currency through Square** or in **cryptocurrency (such as USDC on the Base network)**. By making a transaction you agree to the following:
+Some features let you buy or sell tickets and other items. Card payments are processed by **Stripe**. By making a transaction you agree to the following:
 
-- **Pricing & fees.** Prices, payment-processor fees, and applicable taxes are shown at checkout. Blockchain transactions may also incur network ("gas") fees that we do not control or receive.
-- **Third-party processors.** Card and fiat payments are handled by Square and are subject to Square's terms. Crypto transactions are settled on public blockchains we do not operate.
-- **Finality.** Blockchain transactions are generally **irreversible**. Once submitted, a crypto payment cannot be cancelled or refunded by us.
+- **Pricing & fees.** Prices, payment-processor fees, and applicable taxes are shown at checkout.
+- **Third-party processors.** Card payments are handled by Stripe and are subject to [Stripe's terms](https://stripe.com/legal/consumer). We never see or store your card details.
+- **Promotional codes.** Discount codes may be limited in number, restricted to specific tickets, or time-limited, and may be modified or withdrawn at any time before use.
 - **Refunds.** Refunds for tickets and events are governed by the policy set by the relevant event organizer or creator, and by applicable law. Unless otherwise stated, all sales are final.
 - **Taxes.** You are responsible for determining and paying any taxes that apply to your transactions.
-- **No financial advice.** Nothing on the Services is investment, financial, legal, or tax advice. Digital assets are volatile and you transact at your own risk.
 
 If you sell tickets or collect payments as a creator or organizer, you are responsible for delivering what you offer, for honoring your stated refund policy, and for complying with all laws that apply to your activity.
 

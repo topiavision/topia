@@ -20,7 +20,7 @@ By using the Services, you agree to the practices described here.
 - **Account & profile information** — such as your username, display name, handle, bio, avatar, links, and any content you add to your profile.
 - **Authentication & wallet data** — when you sign in through **Privy**, we receive identifiers such as your email address, phone number, social login, and/or your blockchain wallet address, depending on how you choose to authenticate.
 - **Content you create** — worlds, events, posts, images, reactions, guestbook entries, and other User Content.
-- **Transaction information** — when you buy or sell tickets or items, we and our payment processors collect details needed to complete the transaction (e.g., amount, items, and a payment token). **Card numbers are handled by Square and are not stored by Topia.**
+- **Transaction information** — when you buy or sell tickets or items, we and our payment processors collect details needed to complete the transaction (e.g., amount, items, and a payment token). **Card numbers are handled by Stripe and are not stored by Topia.**
 - **Communications** — messages you send us (e.g., support requests) and waitlist or contact submissions.
 
 **Information collected automatically:**
@@ -31,7 +31,7 @@ By using the Services, you agree to the practices described here.
 **Information from third parties:**
 
 - **Authentication providers** (Privy and any social/login services you connect).
-- **Payment processors** (Square) — transaction status and limited details.
+- **Payment processors** (Stripe) — transaction status and limited details.
 - **Public blockchains** — wallet addresses and on-chain transactions are public by nature. Information you put on-chain is outside our control and generally cannot be deleted.
 
 ## 2. How We Use Your Information
@@ -60,7 +60,7 @@ If you are in the European Economic Area or the United Kingdom, we process your 
 
 We do **not** sell your personal information for money. We share information only as described here:
 
-- **Service providers** — vendors who help us run the Services, including Privy (authentication/wallets), Square (payments), hosting, storage, and analytics providers, who may process data only on our instructions.
+- **Service providers** — vendors who help us run the Services, including Privy (authentication/wallets), Stripe (payments), hosting, storage, and analytics providers, who may process data only on our instructions.
 - **Other users & the public** — your profile, worlds, events, and other content you publish are visible to others by design. Wallet addresses and on-chain activity are publicly visible.
 - **Legal & safety** — when required by law, subpoena, or to protect the rights, safety, or property of Topia, our users, or the public.
 - **Business transfers** — in connection with a merger, acquisition, financing, or sale of assets, subject to this Policy.

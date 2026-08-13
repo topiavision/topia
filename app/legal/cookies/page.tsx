@@ -33,7 +33,7 @@ We do not use cookies to serve personalized third-party advertising. If this cha
 Some cookies are set by third parties that provide functionality on our behalf, including:
 
 - **Privy** — authentication and wallet session management;
-- **Square** — payment processing and fraud prevention;
+- **Stripe** — payment processing and fraud prevention;
 - **Hosting and analytics providers** — performance and reliability.
 
 These third parties may process information in accordance with their own privacy and cookie policies.
