@@ -131,27 +131,36 @@ export async function POST(request: NextRequest) {
         timezone: events.timezone,
         city: events.city,
         address: events.address,
+        createdBy: events.createdBy,
       })
       .from(events)
       .where(eq(events.id, eventId));
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     if (event.rsvpClosed) return NextResponse.json({ error: 'Registration is closed' }, { status: 403 });
 
+    const userId = await resolveOrCreateUser(privyId, { email, name, phone });
+    if (!userId) return NextResponse.json({ error: 'Could not resolve user' }, { status: 500 });
+
     // Ticket-gated events: when every active tier is paid, admission goes
     // through checkout (which auto-RSVPs on fulfillment) — free registration
     // is closed. Events with a free tier (or no tiers) keep the RSVP path.
+    // Hosts and co-hosts are exempt: they RSVP their own event without paying.
     if (PAYMENTS_ENABLED) {
       const tiers = await db
         .select({ priceCents: eventTicketTypes.priceCents })
         .from(eventTicketTypes)
         .where(and(eq(eventTicketTypes.eventId, eventId), eq(eventTicketTypes.isActive, true)));
       if (tiers.length > 0 && tiers.every((t) => t.priceCents > 0)) {
-        return NextResponse.json({ error: 'This event requires a ticket — grab one on the event page' }, { status: 403 });
+        const [hostRow] = await db
+          .select({ id: eventHosts.id })
+          .from(eventHosts)
+          .where(and(eq(eventHosts.eventId, eventId), eq(eventHosts.userId, userId)));
+        const isHost = !!hostRow || event.createdBy === userId;
+        if (!isHost) {
+          return NextResponse.json({ error: 'This event requires a ticket — grab one on the event page' }, { status: 403 });
+        }
       }
     }
-
-    const userId = await resolveOrCreateUser(privyId, { email, name, phone });
-    if (!userId) return NextResponse.json({ error: 'Could not resolve user' }, { status: 500 });
 
     // Claim the TOPIA profile: set the chosen username (validated + unique) and
     // the avatar. With no photo we store a generated colored-initial fallback so

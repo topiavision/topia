@@ -16,14 +16,15 @@ export async function GET(request: NextRequest) {
     const [viewer] = await db.select({ id: users.id }).from(users).where(eq(users.privyId, privyId)).limit(1);
     if (!viewer) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const [[rsvp], [ticket], [checkin]] = await Promise.all([
+    const [[rsvp], [ticketAgg], [checkin]] = await Promise.all([
       db.select({ status: eventRsvps.status }).from(eventRsvps)
         .where(and(eq(eventRsvps.eventId, eventId), eq(eventRsvps.userId, viewer.id))).limit(1),
-      db.select({ id: tickets.id }).from(tickets)
-        .where(and(eq(tickets.eventId, eventId), eq(tickets.ownerId, viewer.id), inArray(tickets.status, ['valid', 'checked_in']))).limit(1),
+      db.select({ value: count() }).from(tickets)
+        .where(and(eq(tickets.eventId, eventId), eq(tickets.ownerId, viewer.id), inArray(tickets.status, ['valid', 'checked_in']))),
       db.select({ createdAt: eventCheckins.createdAt }).from(eventCheckins)
         .where(and(eq(eventCheckins.eventId, eventId), eq(eventCheckins.userId, viewer.id))).limit(1),
     ]);
+    const ticketCount = Number(ticketAgg?.value ?? 0);
 
     // Check-in ordinal (1 = first through the door) — powers "first N"
     // prizes ("you're #12, you qualify").
@@ -36,7 +37,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        onList: rsvp?.status === 'going' || !!ticket,
+        onList: rsvp?.status === 'going' || ticketCount > 0,
+        ticketCount,
         rsvpStatus: rsvp?.status ?? null,
         checkedIn: !!checkin,
         checkedInAt: checkin?.createdAt ?? null,

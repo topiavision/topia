@@ -38,8 +38,9 @@ export default function AvatarStep({ step, total, config, initialValue, fallback
     }
   }
 
+  // Photo is optional — continuing without one keeps the generated fallback
+  // avatar. The upload affordance stays front-and-center, but never blocks.
   function submit() {
-    if (!avatarUrl) { setError('upload a photo to continue.'); return; }
     onAdvance(avatarUrl);
   }
 
@@ -52,7 +53,7 @@ export default function AvatarStep({ step, total, config, initialValue, fallback
       config={config}
       kicker={`${String(step).padStart(2, '0')} · your face`}
       heading="Add a profile photo."
-      hint={avatarUrl ? 'press enter — or pick another' : 'click the circle to upload'}
+      hint={avatarUrl ? 'press enter — or pick another' : 'click the circle to upload — or continue and add one later'}
       onBack={onBack}
     >
       <div className="flex items-center gap-8">

@@ -53,10 +53,13 @@ export default function TicketPurchase({
   /** Fires once a purchase is confirmed (buyer is now RSVP'd 'going'). */
   onPurchased?: () => void;
 }) {
-  void eventId; // tiers are keyed by slug; kept for parity with other event widgets
   const { ready, authenticated, user, login } = usePrivy();
 
   const [tiers, setTiers] = useState<TicketType[] | null>(null);
+  // Tickets the viewer already holds for this event — when > 0 the section
+  // leads with "your tickets" instead of re-pitching the tier list.
+  const [ownedCount, setOwnedCount] = useState(0);
+  const [showBuyMore, setShowBuyMore] = useState(false);
   const [selected, setSelected] = useState<TicketType | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -83,6 +86,19 @@ export default function TicketPurchase({
       .catch(() => setTiers([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
+
+  // How many tickets the viewer already holds (refreshed after purchases).
+  const loadOwned = useCallback(() => {
+    if (!authenticated || !user?.id) return;
+    fetch(`/api/events/checkin/me?eventId=${encodeURIComponent(eventId)}&privyId=${encodeURIComponent(user.id)}`)
+      .then((r) => r.json())
+      .then((d) => setOwnedCount(Number(d.ticketCount) || 0))
+      .catch(() => {});
+  }, [eventId, authenticated, user?.id]);
+
+  useEffect(() => {
+    if (ready) loadOwned();
+  }, [ready, loadOwned]);
 
   // Detect the return leg from Stripe Checkout and clean the URL so refreshes
   // don't re-trigger it.
@@ -120,6 +136,7 @@ export default function TicketPurchase({
             if (!cancelled) {
               setResult({ ticketCount: d.ticketCount });
               setPhase('success');
+              loadOwned();
               onPurchased?.();
             }
             return;
@@ -222,6 +239,7 @@ export default function TicketPurchase({
         // Free tier or fully discounted — issued instantly, no Stripe leg.
         setResult({ ticketCount: data.ticketCount ?? quantity });
         setPhase('success');
+        loadOwned();
         onPurchased?.();
         return;
       }
@@ -257,13 +275,45 @@ export default function TicketPurchase({
         Tickets
       </p>
 
-      {notice && (
+      {notice && ownedCount === 0 && (
         <p className="font-mono text-[12px] mb-3 px-3 py-2 rounded-lg border" style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)', opacity: 0.8 }}>
           {notice}
         </p>
       )}
 
-      <div className="space-y-2">
+      {/* Already holding tickets — lead with that instead of the buy list. */}
+      {ownedCount > 0 && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border mb-2" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--surface-hover)' }}>
+          <div className="min-w-0">
+            <p className="font-mono text-[14px] font-bold" style={{ color: 'var(--foreground)' }}>
+              🎟️ You have {ownedCount} ticket{ownedCount > 1 ? 's' : ''}
+            </p>
+            <p className="font-mono text-[12px] opacity-60" style={{ color: 'var(--foreground)' }}>
+              Open Event Mode at the door to get scanned in.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <a
+              href={`/events/${slug}/live`}
+              className="px-4 py-2 font-mono text-[11px] uppercase tracking-widest rounded-lg no-underline font-bold"
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}
+            >
+              Event Mode
+            </a>
+            {!showBuyMore && (
+              <button
+                onClick={() => setShowBuyMore(true)}
+                className="font-mono text-[11px] underline cursor-pointer bg-transparent border-none opacity-60 hover:opacity-100"
+                style={{ color: 'var(--foreground)' }}
+              >
+                Buy more
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2" style={ownedCount > 0 && !showBuyMore ? { display: 'none' } : undefined}>
         {(tiers ?? []).map((t) => (
           <div
             key={t.id}
