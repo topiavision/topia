@@ -12,6 +12,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "migrate:csv": "tsx scripts/migrate-csv.ts",
+    "db:apply-stripe-ticketing": "node scripts/apply-stripe-ticketing.mjs",
     "seed:worlds": "tsx scripts/seed-worlds.ts",
     "backfill:avatars": "tsx scripts/backfill-fallback-avatars.ts"
   },
@@ -34,7 +35,7 @@
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "square": "^44.1.0",
+    "stripe": "^22.5.0",
     "tsx": "^4.21.0",
     "viem": "^2.46.2"
   },

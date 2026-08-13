@@ -9,6 +9,8 @@ import remarkGfm from 'remark-gfm';
 import Navigation from '../../components/Navigation';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { QUESTION_TYPES, SELECT_TYPES, DEFAULT_LABELS, ROLE_TAGS } from '../../../lib/events/questions';
+import { PAYMENTS_ENABLED } from '../../../lib/featureFlags';
+import TicketSetup, { EMPTY_STAGED, persistStagedTickets, type StagedTickets } from './TicketSetup';
 
 /* ════════════════════════════════════════════════════════════════════
  * EventComposer — the single create/edit surface. /events/create renders
@@ -247,6 +249,12 @@ export default function EventComposer({ mode, initial }: { mode: 'create' | 'edi
 
   // Registration settings + custom questions.
   const [showReg, setShowReg] = useState(false);
+
+  // Paid tickets + promo codes (behind PAYMENTS_ENABLED). Create mode stages
+  // them locally and persists after the event row exists; edit mode manages
+  // live via the ticket-types / promo-codes APIs inside TicketSetup.
+  const [showTix, setShowTix] = useState(false);
+  const [ticketDraft, setTicketDraft] = useState<StagedTickets>(EMPTY_STAGED);
   const [capacity, setCapacity] = useState(initial.rsvpCapacity != null ? String(initial.rsvpCapacity) : '');
   const [approval, setApproval] = useState(initial.rsvpApprovalRequired);
   const [questions, setQuestions] = useState<DraftQuestion[]>([]);
@@ -599,6 +607,14 @@ export default function EventComposer({ mode, initial }: { mode: 'create' | 'edi
         const failed = results.filter((r) => r.status === 'rejected').length;
         if (failed > 0) {
           try { sessionStorage.setItem('eventComposerNotice', `Event saved, but ${failed} registration question${failed > 1 ? 's' : ''} didn't save. Add ${failed > 1 ? 'them' : 'it'} again from Manage.`); } catch {}
+        }
+
+        // Same deal for staged ticket tiers + promo codes.
+        if (PAYMENTS_ENABLED && (ticketDraft.tiers.length > 0 || ticketDraft.promos.length > 0)) {
+          const tixFailed = await persistStagedTickets(user.id, newEventId, ticketDraft);
+          if (tixFailed > 0) {
+            try { sessionStorage.setItem('eventComposerNotice', `Event saved, but ${tixFailed} ticket item${tixFailed > 1 ? 's' : ''} didn't save. Add ${tixFailed > 1 ? 'them' : 'it'} again from Manage → Tickets.`); } catch {}
+          }
         }
       }
 
@@ -953,6 +969,30 @@ export default function EventComposer({ mode, initial }: { mode: 'create' | 'edi
             </div>
             <p className="font-mono text-[10px] opacity-30">Guests always provide name, email &amp; phone. Add custom questions above.</p>
           </div>
+        )}
+
+        {/* Tickets — paid tiers + promo codes (Stripe) */}
+        {PAYMENTS_ENABLED && (
+          <>
+            <button type="button" onClick={() => setShowTix(!showTix)} className="font-mono text-[11px] uppercase tracking-[2px] opacity-40 hover:opacity-100 transition bg-transparent border-none cursor-pointer flex items-center gap-2 mb-3">
+              <span style={{ transition: 'transform 200ms', display: 'inline-block', transform: showTix ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
+              {showTix
+                ? 'Hide tickets'
+                : 'Tickets · paid admission · promo codes' +
+                  (mode !== 'edit' && ticketDraft.tiers.length ? ` · ${ticketDraft.tiers.length} tier${ticketDraft.tiers.length > 1 ? 's' : ''}` : '') +
+                  (mode !== 'edit' && ticketDraft.promos.length ? ` · ${ticketDraft.promos.length} code${ticketDraft.promos.length > 1 ? 's' : ''}` : '')}
+            </button>
+            {showTix && (
+              <div className="border rounded-lg p-4 mb-6" style={{ borderColor: 'var(--border-color)' }}>
+                <TicketSetup
+                  privyId={user?.id ?? null}
+                  eventId={mode === 'edit' ? initial.eventId ?? null : null}
+                  staged={ticketDraft}
+                  onStagedChange={setTicketDraft}
+                />
+              </div>
+            )}
+          </>
         )}
 
         {error && <div className="mb-6 font-mono text-[12px] uppercase tracking-[2px] border rounded-sm px-3 py-2" style={{ color: ERR, borderColor: `${ERR}55`, backgroundColor: `${ERR}14` }}>{error}</div>}

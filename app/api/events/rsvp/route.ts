@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, users, events, eventRsvps, eventHosts, eventQuestions, notifications } from '@/lib/db';
+import { db, users, events, eventRsvps, eventHosts, eventQuestions, eventTicketTypes, notifications } from '@/lib/db';
+import { PAYMENTS_ENABLED } from '@/lib/featureFlags';
 import { eq, and, count, sql } from 'drizzle-orm';
 import { markInviteAccepted } from '@/lib/events/invites';
 import { promoteFromWaitlist } from '@/lib/events/waitlist';
@@ -135,6 +136,19 @@ export async function POST(request: NextRequest) {
       .where(eq(events.id, eventId));
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     if (event.rsvpClosed) return NextResponse.json({ error: 'Registration is closed' }, { status: 403 });
+
+    // Ticket-gated events: when every active tier is paid, admission goes
+    // through checkout (which auto-RSVPs on fulfillment) — free registration
+    // is closed. Events with a free tier (or no tiers) keep the RSVP path.
+    if (PAYMENTS_ENABLED) {
+      const tiers = await db
+        .select({ priceCents: eventTicketTypes.priceCents })
+        .from(eventTicketTypes)
+        .where(and(eq(eventTicketTypes.eventId, eventId), eq(eventTicketTypes.isActive, true)));
+      if (tiers.length > 0 && tiers.every((t) => t.priceCents > 0)) {
+        return NextResponse.json({ error: 'This event requires a ticket — grab one on the event page' }, { status: 403 });
+      }
+    }
 
     const userId = await resolveOrCreateUser(privyId, { email, name, phone });
     if (!userId) return NextResponse.json({ error: 'Could not resolve user' }, { status: 500 });

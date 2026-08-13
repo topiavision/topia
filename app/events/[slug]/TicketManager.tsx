@@ -1,20 +1,23 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import TicketSetup from '../_components/TicketSetup';
 
-interface TicketType {
-  id: string;
-  name: string;
-  description: string | null;
-  priceCents: number;
-  currency: string;
-  quantityTotal: number | null;
-  quantitySold: number;
-  isActive: boolean;
+interface SalesSummary {
+  paidOrders: number;
+  ticketsSold: number;
+  grossCents: number;
+  discountCents: number;
+  refundedOrders: number;
 }
 
-// Host-only editor for an event's ticket tiers. Rendered as the Tickets tab of
-// the manage console. Talks to /api/events/ticket-types (host-gated server-side).
+function usd(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+// Host-only ticketing console — the Tickets tab of the manage page. A sales
+// rollup on top, then live tier + promo code management via TicketSetup
+// (host-gated server-side on every call).
 export default function TicketManager({
   eventId,
   slug,
@@ -24,158 +27,46 @@ export default function TicketManager({
   slug: string;
   privyId: string;
 }) {
-  const [tiers, setTiers] = useState<TicketType[]>([]);
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState(''); // dollars, as typed
-  const [qty, setQty] = useState(''); // blank = unlimited
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  const load = useCallback(() => {
-    fetch(`/api/events/ticket-types?slug=${slug}&includeInactive=1`)
-      .then((r) => r.json())
-      .then((d) => setTiers(d.ticketTypes ?? []))
-      .catch(() => setTiers([]));
-  }, [slug]);
+  void slug;
+  const [summary, setSummary] = useState<SalesSummary | null>(null);
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  const addTier = async () => {
-    setError('');
-    if (!name.trim()) {
-      setError('Name is required');
-      return;
-    }
-    const priceCents = Math.round(parseFloat(price || '0') * 100);
-    if (Number.isNaN(priceCents) || priceCents < 0) {
-      setError('Enter a valid price');
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await fetch('/api/events/ticket-types', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          privyId,
-          eventId,
-          name: name.trim(),
-          priceCents,
-          quantityTotal: qty.trim() === '' ? null : Math.max(0, parseInt(qty, 10)),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed to add tier');
-      setName('');
-      setPrice('');
-      setQty('');
-      setOpen(false);
-      load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add tier');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removeTier = async (id: string) => {
-    await fetch(`/api/events/ticket-types?id=${id}&privyId=${privyId}`, { method: 'DELETE' });
-    load();
-  };
-
-  const toggleActive = async (t: TicketType) => {
-    await fetch('/api/events/ticket-types', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ privyId, id: t.id, isActive: !t.isActive }),
-    });
-    load();
-  };
+    fetch(`/api/events/orders-summary?eventId=${eventId}&privyId=${encodeURIComponent(privyId)}`)
+      .then((r) => r.json())
+      .then((d) => setSummary(d.summary ?? null))
+      .catch(() => setSummary(null));
+  }, [eventId, privyId]);
 
   return (
     <div className="mb-8 rounded-lg border p-4" style={{ borderColor: 'var(--border-color)' }}>
-      <div className="flex items-center justify-between mb-3">
-        <p className="font-mono text-[12px] uppercase tracking-[0.15em] font-bold opacity-60" style={{ color: 'var(--foreground)' }}>
-          Manage Tickets
-        </p>
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="font-mono text-[11px] uppercase tracking-widest px-3 py-1.5 rounded-lg border cursor-pointer bg-transparent"
-          style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
-        >
-          {open ? 'Cancel' : '+ Add tier'}
-        </button>
-      </div>
+      <p className="font-mono text-[12px] uppercase tracking-[0.15em] font-bold opacity-60 mb-3" style={{ color: 'var(--foreground)' }}>
+        Tickets &amp; Promo Codes
+      </p>
 
-      {tiers.length === 0 && !open && (
-        <p className="font-mono text-[12px] opacity-50" style={{ color: 'var(--foreground)' }}>
-          No ticket tiers yet. Add one to start selling — buyers will see Card + USDC options.
-        </p>
-      )}
-
-      {tiers.length > 0 && (
-        <div className="space-y-2 mb-3">
-          {tiers.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-2 text-[13px]">
-              <span className="font-mono truncate" style={{ color: 'var(--foreground)', opacity: t.isActive ? 1 : 0.4 }}>
-                {t.name} · {t.priceCents === 0 ? 'Free' : `$${(t.priceCents / 100).toFixed(2)}`}
-                {t.quantityTotal != null && ` · ${t.quantitySold}/${t.quantityTotal}`}
-                {!t.isActive && ' · (hidden)'}
-              </span>
-              <span className="flex gap-2 shrink-0">
-                <button onClick={() => toggleActive(t)} className="font-mono text-[11px] underline cursor-pointer bg-transparent border-none" style={{ color: 'var(--foreground)' }}>
-                  {t.isActive ? 'Hide' : 'Show'}
-                </button>
-                <button onClick={() => removeTier(t.id)} className="font-mono text-[11px] underline cursor-pointer bg-transparent border-none" style={{ color: '#ff6b6b' }}>
-                  {t.quantitySold > 0 ? 'Close' : 'Delete'}
-                </button>
-              </span>
+      {summary && (summary.paidOrders > 0 || summary.refundedOrders > 0) && (
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {[
+            { label: 'Sold', value: String(summary.ticketsSold) },
+            { label: 'Gross', value: usd(summary.grossCents) },
+            {
+              label: 'Discounts',
+              value: summary.discountCents > 0 ? `−${usd(summary.discountCents)}` : '—',
+            },
+          ].map((s) => (
+            <div key={s.label} className="rounded-lg border px-3 py-2 text-center" style={{ borderColor: 'var(--border-color)' }}>
+              <p className="font-mono text-[14px] font-bold" style={{ color: 'var(--foreground)' }}>{s.value}</p>
+              <p className="font-mono text-[10px] uppercase tracking-[1px] opacity-40" style={{ color: 'var(--foreground)' }}>{s.label}</p>
             </div>
           ))}
+          {summary.refundedOrders > 0 && (
+            <p className="col-span-3 font-mono text-[11px] opacity-50" style={{ color: 'var(--foreground)' }}>
+              {summary.refundedOrders} order{summary.refundedOrders > 1 ? 's' : ''} refunded (issue refunds from the Stripe dashboard — tickets void automatically).
+            </p>
+          )}
         </div>
       )}
 
-      {open && (
-        <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Tier name (e.g. General Admission)"
-            className="w-full px-3 py-2 font-mono text-[13px] rounded-lg border bg-transparent"
-            style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
-          />
-          <div className="flex gap-2">
-            <input
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              inputMode="decimal"
-              placeholder="Price USD (0 = free)"
-              className="flex-1 px-3 py-2 font-mono text-[13px] rounded-lg border bg-transparent"
-              style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
-            />
-            <input
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              inputMode="numeric"
-              placeholder="Qty (blank = ∞)"
-              className="flex-1 px-3 py-2 font-mono text-[13px] rounded-lg border bg-transparent"
-              style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
-            />
-          </div>
-          {error && <p className="font-mono text-[12px]" style={{ color: '#ff6b6b' }}>{error}</p>}
-          <button
-            onClick={addTier}
-            disabled={busy}
-            className="w-full px-4 py-2.5 font-mono text-[12px] uppercase tracking-widest rounded-lg cursor-pointer border-none font-bold disabled:opacity-40"
-            style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}
-          >
-            {busy ? 'Saving…' : 'Save tier'}
-          </button>
-        </div>
-      )}
+      <TicketSetup privyId={privyId} eventId={eventId} />
     </div>
   );
 }

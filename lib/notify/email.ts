@@ -13,6 +13,7 @@
 //   event-rsvp-approved    → EVENT_NAME, EVENT_URL, GUEST_NAME
 //   event-rsvp-declined    → EVENT_NAME, EVENT_URL, GUEST_NAME
 //   event-host-rsvp-alert  → EVENT_NAME, MANAGE_URL, GUEST_NAME, STATUS
+//   event-ticket-confirmed → EVENT_NAME, EVENT_URL, GUEST_NAME, TICKET_COUNT_LABEL, ORDER_TOTAL   (paid ticket order)
 //   complete-your-profile  → USER_NAME, PROFILE_URL   (new-signup nudge)
 //
 // Template ids default to the slugs above but can be overridden per-env so you
@@ -29,6 +30,7 @@ export const EVENT_TEMPLATES = {
   rsvpApproved:  process.env.RESEND_TPL_RSVP_APPROVED       || 'event-rsvp-approved',
   rsvpDeclined:  process.env.RESEND_TPL_RSVP_DECLINED       || 'event-rsvp-declined',
   hostAlert:     process.env.RESEND_TPL_HOST_RSVP_ALERT     || 'event-host-rsvp-alert',
+  ticketConfirmed: process.env.RESEND_TPL_TICKET_CONFIRMED  || 'event-ticket-confirmed',
   completeProfile: process.env.RESEND_TPL_COMPLETE_PROFILE  || 'complete-your-profile',
   passportComplete: process.env.RESEND_TPL_PASSPORT_COMPLETE || 'passport-complete',
 } as const;
@@ -231,6 +233,26 @@ export function sendRsvpConfirmation(opts: {
       EVENT_WHERE: opts.eventWhere || 'Location to be announced',
       PROFILE_URL: `${opts.origin}/onboarding`,
       CARD_URL: handle ? `${cardUrl(opts.origin, handle)}?stamp=${encodeURIComponent(opts.slug)}` : '',
+    },
+  });
+}
+
+// Ticket purchase confirmation — fired once per order when it flips to paid
+// (card via Stripe, or a free/fully-discounted claim). totalCents is what was
+// actually charged after any promo discount.
+export function sendTicketConfirmation(opts: {
+  to: string; eventName: string; origin: string; slug: string;
+  ticketCount: number; totalCents: number; guestName?: string | null;
+}) {
+  return sendTemplateEmail({
+    to: opts.to,
+    templateId: EVENT_TEMPLATES.ticketConfirmed,
+    variables: {
+      EVENT_NAME: opts.eventName,
+      EVENT_URL: eventUrl(opts.origin, opts.slug),
+      GUEST_NAME: opts.guestName || 'there',
+      TICKET_COUNT_LABEL: `${opts.ticketCount} ticket${opts.ticketCount === 1 ? '' : 's'}`,
+      ORDER_TOTAL: opts.totalCents === 0 ? 'Free' : `$${(opts.totalCents / 100).toFixed(2)}`,
     },
   });
 }
