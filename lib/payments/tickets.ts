@@ -4,8 +4,8 @@
 // retries, double confirms) never double-issue tickets or over-count
 // quantitySold / promo redemptions.
 import { randomBytes } from 'crypto';
-import { eq, sql } from 'drizzle-orm';
-import { db, tickets, ticketOrders, eventTicketTypes, eventPromoCodes, events, users } from '@/lib/db';
+import { and, eq, sql } from 'drizzle-orm';
+import { db, tickets, ticketOrders, eventTicketTypes, eventPromoCodes, eventRsvps, events, users } from '@/lib/db';
 import { sendTicketConfirmation } from '@/lib/notify/email';
 
 // Crockford-ish base32 (no I/O/0/1) — unambiguous when read off a screen/QR.
@@ -86,6 +86,19 @@ export async function fulfillOrder(
         .update(eventPromoCodes)
         .set({ redemptionCount: sql`${eventPromoCodes.redemptionCount} + 1`, updatedAt: new Date() })
         .where(eq(eventPromoCodes.id, order.promoCodeId));
+    }
+
+    // A paid ticket is admission: put the buyer on the guest list as 'going',
+    // bypassing approval/capacity. Guests tab, Who's Going, counts, and
+    // reminder emails all read RSVPs, so this keeps one unified list.
+    const [rsvp] = await tx
+      .select({ id: eventRsvps.id, status: eventRsvps.status })
+      .from(eventRsvps)
+      .where(and(eq(eventRsvps.eventId, order.eventId), eq(eventRsvps.userId, order.buyerId)));
+    if (!rsvp) {
+      await tx.insert(eventRsvps).values({ eventId: order.eventId, userId: order.buyerId, status: 'going' });
+    } else if (rsvp.status !== 'going') {
+      await tx.update(eventRsvps).set({ status: 'going' }).where(eq(eventRsvps.id, rsvp.id));
     }
 
     return { orderId, ticketCount: rows.length, alreadyFulfilled: false, order };

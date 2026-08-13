@@ -97,13 +97,27 @@ Discount math lives in `lib/payments/promo.ts` and is applied server-side at
 order creation; the buyer-side "Apply" button is only a preview of the same
 check.
 
-## 4. Refunds
+## 4. How tickets relate to RSVPs
+
+One guest list. The two paths converge:
+
+- **Buying a ticket auto-RSVPs the buyer as `going`** (inside the fulfillment
+  transaction, bypassing approval/capacity — payment is admission). Buyers
+  appear in the Guests tab, Who's Going, counts, and reminder emails.
+- **Ticket-gated events**: when every active tier is paid, the free RSVP
+  button hides and the RSVP API rejects free registration — checkout is the
+  only way in. Events with a free tier (or no tiers at all) keep the normal
+  RSVP flow, including approval and waitlists.
+- **Door check-in** was already unified: the scan list is RSVPs ∪ valid
+  ticket holders, deduped, and scanning stamps tickets `checked_in`.
+
+## 5. Refunds
 
 Issue refunds from the **Stripe dashboard**. The `charge.refunded` webhook
 (full refunds only) flips the order to `refunded`, voids its tickets, and
 releases tier supply. Partial refunds intentionally leave tickets valid.
 
-## 5. Stripe-side gotchas to expect
+## 6. Stripe-side gotchas to expect
 
 - **First payout ~7 days** after the first live charge; ~2-day rolling after.
 - **Rolling review**: a new account with a sudden sales spike can get asked

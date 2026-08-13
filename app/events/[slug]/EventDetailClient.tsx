@@ -234,6 +234,9 @@ export default function EventDetailClient({ slug }: { slug: string }) {
   const { user: privyUser, authenticated, ready, login } = usePrivy();
   const router = useRouter();
   const [event, setEvent] = useState<EventDetail | null>(null);
+  // Ticket-gating: when every active tier is paid, checkout is the only way in
+  // (the free RSVP button hides; buying auto-RSVPs the buyer as 'going').
+  const [ticketGated, setTicketGated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -741,13 +744,23 @@ export default function EventDetailClient({ slug }: { slug: string }) {
                   {(event.userStatus === 'going' || (event.userRsvped && event.userStatus !== 'pending' && event.userStatus !== 'waitlisted')) ? 'You’re in! See you there.'
                     : event.userStatus === 'pending' ? 'Your request is awaiting the host’s approval.'
                     : event.userStatus === 'waitlisted' ? 'You’re on the waitlist — we’ll move you in automatically when a spot opens.'
+                    : ticketGated ? 'Grab a ticket below to join — your ticket is your registration.'
                     : event.rsvpApprovalRequired ? 'Approval required — request to join below.'
                     : 'Welcome! To join the event, please register below.'}
                 </p>
               )}
 
               {/* Paid tickets — hidden behind PAYMENTS_ENABLED */}
-              {PAYMENTS_ENABLED && !isPast && !event.isHost && <TicketPurchase eventId={event.id} slug={event.slug} />}
+              {PAYMENTS_ENABLED && !isPast && !event.isHost && (
+                <TicketPurchase
+                  eventId={event.id}
+                  slug={event.slug}
+                  onTiersLoaded={({ count, allPaid }) => setTicketGated(count > 0 && allPaid)}
+                  onPurchased={() =>
+                    setEvent((prev) => (prev ? { ...prev, userRsvped: true, userStatus: 'going' } : prev))
+                  }
+                />
+              )}
 
               {/* Host can RSVP themselves (mark attendance / withdraw) */}
               {event.isHost && !isPast && (() => {
@@ -786,6 +799,21 @@ export default function EventDetailClient({ slug }: { slug: string }) {
             const isGoing = event.userStatus === 'going' || (!event.userStatus && event.userRsvped);
             const isPending = event.userStatus === 'pending';
             const isWaitlisted = event.userStatus === 'waitlisted';
+            // Ticket-gated events: checkout is the only path in for guests who
+            // aren't registered yet (buying auto-RSVPs them). Guests who are
+            // already going/pending/waitlisted keep their status button.
+            if (ticketGated && !isGoing && !isPending && !isWaitlisted) {
+              return (
+                <button
+                  onClick={handleShare}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-3 font-mono text-[11px] uppercase tracking-widest border hover:opacity-70 transition rounded-lg cursor-pointer"
+                  style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
+                >
+                  <ShareIcon size={12} />
+                  Share
+                </button>
+              );
+            }
             const cap = event.rsvpCapacity ?? null;
             const spotsLeft = cap != null ? Math.max(0, cap - event.rsvpCount) : null;
             const isFull = spotsLeft === 0 && !isGoing && !isPending && !isWaitlisted;

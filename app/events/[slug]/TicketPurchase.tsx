@@ -40,7 +40,19 @@ function usd(cents: number) {
 // redirects back here with ?checkout=success&order=<id>, where we poll the
 // status endpoint until the webhook (or the endpoint's own fallback) confirms
 // payment. No card data ever touches this app.
-export default function TicketPurchase({ eventId, slug }: { eventId: string; slug: string }) {
+export default function TicketPurchase({
+  eventId,
+  slug,
+  onTiersLoaded,
+  onPurchased,
+}: {
+  eventId: string;
+  slug: string;
+  /** Reports tier composition so the page can gate the free-RSVP button. */
+  onTiersLoaded?: (info: { count: number; allPaid: boolean }) => void;
+  /** Fires once a purchase is confirmed (buyer is now RSVP'd 'going'). */
+  onPurchased?: () => void;
+}) {
   void eventId; // tiers are keyed by slug; kept for parity with other event widgets
   const { ready, authenticated, user, login } = usePrivy();
 
@@ -63,8 +75,13 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
   useEffect(() => {
     fetch(`/api/events/ticket-types?slug=${slug}`)
       .then((r) => r.json())
-      .then((d) => setTiers(d.ticketTypes ?? []))
+      .then((d) => {
+        const list: TicketType[] = d.ticketTypes ?? [];
+        setTiers(list);
+        onTiersLoaded?.({ count: list.length, allPaid: list.length > 0 && list.every((t) => t.priceCents > 0) });
+      })
       .catch(() => setTiers([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   // Detect the return leg from Stripe Checkout and clean the URL so refreshes
@@ -103,6 +120,7 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
             if (!cancelled) {
               setResult({ ticketCount: d.ticketCount });
               setPhase('success');
+              onPurchased?.();
             }
             return;
           }
@@ -204,6 +222,7 @@ export default function TicketPurchase({ eventId, slug }: { eventId: string; slu
         // Free tier or fully discounted — issued instantly, no Stripe leg.
         setResult({ ticketCount: data.ticketCount ?? quantity });
         setPhase('success');
+        onPurchased?.();
         return;
       }
       if (!data.url) throw new Error('Checkout failed — try again.');
