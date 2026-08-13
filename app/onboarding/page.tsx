@@ -8,7 +8,6 @@ import WelcomeStep from './steps/WelcomeStep';
 import IdentityStep from './steps/IdentityStep';
 import AvatarStep from './steps/AvatarStep';
 import DoneStep from './steps/DoneStep';
-import { isRealPhoto } from '../../lib/avatar';
 
 /* ── Wizard state ─────────────────────────────────────────────── */
 
@@ -93,9 +92,8 @@ const TOTAL_STEPS = STEPS.length - 2; // welcome + done are bookends; "progress"
 
 function firstIncompleteStep(data: Partial<WizardData>): number {
   if (!data.name || !data.username) return 1;
-  // An auto-generated fallback avatar (SVG data URL) doesn't count — route them
-  // to the avatar step to upload a real photo.
-  if (!isRealPhoto(data.avatarUrl)) return 2;
+  // Photo is encouraged but optional — the generated fallback avatar is fine,
+  // so a missing photo never traps returning users on the avatar step.
   return STEPS.length - 1;
 }
 
@@ -244,7 +242,7 @@ function OnboardingWizard() {
           initialValue={state.data.avatarUrl}
           fallbackName={state.data.name || 'You'}
           onBack={back}
-          onAdvance={(avatarUrl) => advance({ avatarUrl })}
+          onAdvance={(avatarUrl) => advance(avatarUrl ? { avatarUrl } : {})}
         />
       )}
       {current === 'done' && (

@@ -3,6 +3,7 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import PrivyProviderWrapper from "./components/PrivyProviderWrapper";
 import { ToastProvider } from "./components/Toast";
+import ThemeInit from "./components/ThemeInit";
 import CookieConsent from "./components/CookieConsent";
 import FeedbackWidget from "./components/FeedbackWidget";
 
@@ -92,6 +93,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
+        <ThemeInit />
         {/* Global texture overlays */}
         <div className="grain-overlay" />
         <div className="scanlines-overlay" />

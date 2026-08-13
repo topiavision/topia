@@ -113,11 +113,9 @@ export default function WaitlistPage() {
     }, 100);
     return () => {
       clearTimeout(t);
-      if (prev) {
-        document.documentElement.setAttribute('data-theme', prev);
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-      }
+      // Never drop the attribute entirely — an attribute-less <html> falls
+      // back to the light CSS defaults, and the site defaults to dark.
+      document.documentElement.setAttribute('data-theme', prev || 'dark');
     };
   }, []);
 
