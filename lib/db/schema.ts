@@ -798,6 +798,12 @@ export const eventTicketTypes = pgTable('event_ticket_types', {
   quantitySold: integer('quantity_sold').notNull().default(0),
   maxPerOrder: integer('max_per_order').default(10),
   isActive: boolean('is_active').notNull().default(true),
+  // Sale window (both optional). Before salesStartAt the tier shows as
+  // "on sale <date>" but can't be bought; after salesEndAt it stays visible,
+  // crossed out as "sale ended". null = no bound. isActive stays the master
+  // hide-entirely switch.
+  salesStartAt: timestamp('sales_start_at'),
+  salesEndAt: timestamp('sales_end_at'),
   sortOrder: integer('sort_order').default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

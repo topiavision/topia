@@ -3,6 +3,14 @@ import { asc, eq } from 'drizzle-orm';
 import { db, events, eventTicketTypes } from '@/lib/db';
 import { requireManager } from '@/lib/events/auth';
 
+// Sentinel distinguishing "not provided / cleared" (null) from "unparseable".
+const INVALID = Symbol('invalid-date');
+function parseWhen(raw: unknown): Date | null | typeof INVALID {
+  if (raw == null || raw === '') return null;
+  const d = new Date(String(raw));
+  return Number.isNaN(d.getTime()) ? INVALID : d;
+}
+
 // GET /api/events/ticket-types?eventId=... OR ?slug=...
 // Public — lists active tiers (hosts see inactive too via includeInactive=1).
 export async function GET(request: NextRequest) {
@@ -28,11 +36,18 @@ export async function GET(request: NextRequest) {
       .orderBy(asc(eventTicketTypes.sortOrder), asc(eventTicketTypes.createdAt));
 
     const visible = includeInactive ? rows : rows.filter((t) => t.isActive);
-    // Derive remaining supply for the client (null = unlimited).
+    // Derive remaining supply (null = unlimited) and the sale-window state:
+    // 'upcoming' (visible, not purchasable yet), 'live', or 'ended' (visible,
+    // crossed out). The same window is enforced server-side at order creation.
+    const now = new Date();
     const ticketTypes = visible.map((t) => ({
       ...t,
       remaining: t.quantityTotal == null ? null : Math.max(0, t.quantityTotal - t.quantitySold),
       soldOut: t.quantityTotal != null && t.quantitySold >= t.quantityTotal,
+      saleState:
+        t.salesStartAt && now < t.salesStartAt ? 'upcoming'
+        : t.salesEndAt && now > t.salesEndAt ? 'ended'
+        : 'live',
     }));
 
     return NextResponse.json({ ticketTypes });
@@ -58,6 +73,14 @@ export async function POST(request: NextRequest) {
         ? null
         : Math.max(0, Math.round(Number(data.quantityTotal)));
 
+    const salesStartAt = parseWhen(data.salesStartAt);
+    if (salesStartAt === INVALID) return NextResponse.json({ error: 'Invalid sale start date' }, { status: 400 });
+    const salesEndAt = parseWhen(data.salesEndAt);
+    if (salesEndAt === INVALID) return NextResponse.json({ error: 'Invalid sale end date' }, { status: 400 });
+    if (salesStartAt && salesEndAt && salesEndAt <= salesStartAt) {
+      return NextResponse.json({ error: 'Sale end must be after sale start' }, { status: 400 });
+    }
+
     const [created] = await db
       .insert(eventTicketTypes)
       .values({
@@ -70,6 +93,8 @@ export async function POST(request: NextRequest) {
         maxPerOrder: data.maxPerOrder ? Math.max(1, Math.round(Number(data.maxPerOrder))) : 10,
         isActive: data.isActive ?? true,
         sortOrder: data.sortOrder ?? 0,
+        salesStartAt,
+        salesEndAt,
       })
       .returning();
 
@@ -108,6 +133,16 @@ export async function PUT(request: NextRequest) {
     if (data.maxPerOrder != null) patch.maxPerOrder = Math.max(1, Math.round(Number(data.maxPerOrder)));
     if (data.isActive != null) patch.isActive = Boolean(data.isActive);
     if (data.sortOrder != null) patch.sortOrder = Math.round(Number(data.sortOrder));
+    if (data.salesStartAt !== undefined) {
+      const d = parseWhen(data.salesStartAt);
+      if (d === INVALID) return NextResponse.json({ error: 'Invalid sale start date' }, { status: 400 });
+      patch.salesStartAt = d;
+    }
+    if (data.salesEndAt !== undefined) {
+      const d = parseWhen(data.salesEndAt);
+      if (d === INVALID) return NextResponse.json({ error: 'Invalid sale end date' }, { status: 400 });
+      patch.salesEndAt = d;
+    }
 
     const [updated] = await db
       .update(eventTicketTypes)

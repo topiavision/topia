@@ -97,6 +97,19 @@ Discount math lives in `lib/payments/promo.ts` and is applied server-side at
 order creation; the buyer-side "Apply" button is only a preview of the same
 check.
 
+### Tier sale windows
+
+Each tier can carry an optional **goes-on-sale** and/or **sales-end**
+datetime (set in the composer or Manage → Tickets):
+
+- before the start: the tier is listed but not purchasable — "On sale Aug 29"
+- after the end: the tier stays listed, crossed out — "Sale ended"
+- both are enforced server-side at order creation, not just hidden in the UI
+
+Typical setup: an Early Bird tier with a sales-end date, plus a Same-Day /
+Door tier whose start is the event morning. `isActive` remains the master
+switch to hide a tier entirely.
+
 ## 4. How tickets relate to RSVPs
 
 One guest list. The two paths converge:

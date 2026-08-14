@@ -17,6 +17,21 @@ interface TicketType {
   isActive: boolean;
   remaining: number | null;
   soldOut: boolean;
+  salesStartAt: string | null;
+  salesEndAt: string | null;
+  // 'upcoming' = visible but not on sale yet · 'ended' = visible, crossed out
+  saleState: 'upcoming' | 'live' | 'ended';
+}
+
+// "Aug 29" — plus the time when it isn't midnight (door tiers often open at
+// a specific hour).
+function saleDateLabel(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+  return hasTime
+    ? `${date}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+    : date;
 }
 
 type PromoState =
@@ -314,42 +329,56 @@ export default function TicketPurchase({
       )}
 
       <div className="space-y-2" style={ownedCount > 0 && !showBuyMore ? { display: 'none' } : undefined}>
-        {(tiers ?? []).map((t) => (
-          <div
-            key={t.id}
-            className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border"
-            style={{ borderColor: 'var(--border-color)' }}
-          >
-            <div className="min-w-0">
-              <p className="font-mono text-[14px] font-bold truncate" style={{ color: 'var(--foreground)' }}>
-                {t.name}
-              </p>
-              {t.description && (
-                <p className="font-mono text-[12px] opacity-60 truncate" style={{ color: 'var(--foreground)' }}>
-                  {t.description}
+        {(tiers ?? []).map((t) => {
+          const ended = t.saleState === 'ended';
+          const upcoming = t.saleState === 'upcoming';
+          return (
+            <div
+              key={t.id}
+              className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border"
+              style={{ borderColor: 'var(--border-color)', opacity: ended ? 0.55 : 1 }}
+            >
+              <div className="min-w-0">
+                <p className="font-mono text-[14px] font-bold truncate" style={{ color: 'var(--foreground)', textDecoration: ended ? 'line-through' : undefined }}>
+                  {t.name}
                 </p>
-              )}
-              {t.remaining != null && t.remaining <= 10 && !t.soldOut && (
-                <p className="font-mono text-[11px] opacity-50" style={{ color: 'var(--foreground)' }}>
-                  {t.remaining} left
-                </p>
-              )}
+                {t.description && (
+                  <p className="font-mono text-[12px] opacity-60 truncate" style={{ color: 'var(--foreground)' }}>
+                    {t.description}
+                  </p>
+                )}
+                {!ended && !upcoming && t.remaining != null && t.remaining <= 10 && !t.soldOut && (
+                  <p className="font-mono text-[11px] opacity-50" style={{ color: 'var(--foreground)' }}>
+                    {t.remaining} left
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="font-mono text-[14px] font-bold" style={{ color: 'var(--foreground)', textDecoration: ended ? 'line-through' : undefined }}>
+                  {t.priceCents === 0 ? 'Free' : usd(t.priceCents)}
+                </span>
+                {ended ? (
+                  <span className="font-mono text-[11px] uppercase tracking-widest opacity-70" style={{ color: 'var(--foreground)' }}>
+                    Sale ended
+                  </span>
+                ) : upcoming ? (
+                  <span className="px-3 py-2 font-mono text-[11px] uppercase tracking-widest rounded-lg border" style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)', opacity: 0.7 }}>
+                    {t.salesStartAt ? `On sale ${saleDateLabel(t.salesStartAt)}` : 'Coming soon'}
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => openFor(t)}
+                    disabled={t.soldOut}
+                    className="px-4 py-2 font-mono text-[11px] uppercase tracking-widest rounded-lg cursor-pointer transition border-none font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}
+                  >
+                    {t.soldOut ? 'Sold out' : 'Get'}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="font-mono text-[14px] font-bold" style={{ color: 'var(--foreground)' }}>
-                {t.priceCents === 0 ? 'Free' : usd(t.priceCents)}
-              </span>
-              <button
-                onClick={() => openFor(t)}
-                disabled={t.soldOut}
-                className="px-4 py-2 font-mono text-[11px] uppercase tracking-widest rounded-lg cursor-pointer transition border-none font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}
-              >
-                {t.soldOut ? 'Sold out' : 'Get'}
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Post-redirect confirmation (no tier modal open) */}

@@ -45,6 +45,16 @@ export async function createPendingOrder(input: CreateOrderInput): Promise<Creat
   if (!tier) return { ok: false, status: 404, error: 'Ticket type not found' };
   if (!tier.isActive) return { ok: false, status: 400, error: 'This ticket is not on sale' };
 
+  // Sale window — the UI greys these out, but enforce here so a direct API
+  // call can't buy early or after close.
+  const now = new Date();
+  if (tier.salesStartAt && now < tier.salesStartAt) {
+    return { ok: false, status: 400, error: 'This ticket isn’t on sale yet' };
+  }
+  if (tier.salesEndAt && now > tier.salesEndAt) {
+    return { ok: false, status: 400, error: 'Sales for this ticket have ended' };
+  }
+
   const maxPerOrder = tier.maxPerOrder ?? 10;
   if (quantity > maxPerOrder) {
     return { ok: false, status: 400, error: `You can buy at most ${maxPerOrder} per order` };
