@@ -24,8 +24,10 @@ export default function PrivyProviderWrapper({ children }: { children: React.Rea
         loginMethods: ['email', 'sms', 'google', 'wallet'],
         customOAuthRedirectUrl,
         appearance: {
-          theme: 'light',
-          accentColor: '#1a1a1a',
+          // Match the site's dark-first look — the light modal read as the
+          // whole site "switching to light mode" during login.
+          theme: 'dark',
+          accentColor: '#e4fe52',
           logo: '/favicon.ico',
           walletList: ['coinbase_wallet', 'metamask'],
         },
