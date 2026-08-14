@@ -20,6 +20,18 @@ export interface DraftTier {
   maxPerOrder: number;
   quantitySold: number;
   isActive: boolean;
+  // Sale window — datetime strings (from <input type="datetime-local">, local
+  // time) or ISO from the API; null = unbounded. Before start the tier shows
+  // as "on sale <date>"; after end it stays listed, crossed out.
+  salesStartAt: string | null;
+  salesEndAt: string | null;
+}
+
+function windowLabel(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+  return hasTime ? `${date} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : date;
 }
 
 export interface DraftPromo {
@@ -69,6 +81,8 @@ export async function persistStagedTickets(
           quantityTotal: t.quantityTotal,
           maxPerOrder: t.maxPerOrder,
           sortOrder: i,
+          salesStartAt: t.salesStartAt,
+          salesEndAt: t.salesEndAt,
         }),
       });
       const d = await res.json();
@@ -157,6 +171,8 @@ export default function TicketSetup({
   const [tPrice, setTPrice] = useState('');
   const [tQty, setTQty] = useState('');
   const [tMax, setTMax] = useState('');
+  const [tStart, setTStart] = useState(''); // datetime-local, '' = on sale now
+  const [tEnd, setTEnd] = useState('');     // datetime-local, '' = never ends
 
   // Promo form
   const [promoOpen, setPromoOpen] = useState(false);
@@ -174,7 +190,7 @@ export default function TicketSetup({
       fetch(`/api/events/promo-codes?eventId=${eventId}&privyId=${encodeURIComponent(privyId)}`).then((r) => r.json()),
     ])
       .then(([tt, pc]) => {
-        type ApiTier = { id: string; name: string; description: string | null; priceCents: number; quantityTotal: number | null; maxPerOrder: number | null; quantitySold: number; isActive: boolean };
+        type ApiTier = { id: string; name: string; description: string | null; priceCents: number; quantityTotal: number | null; maxPerOrder: number | null; quantitySold: number; isActive: boolean; salesStartAt: string | null; salesEndAt: string | null };
         type ApiPromo = { id: string; code: string; discountType: 'percent' | 'fixed'; discountValue: number; ticketTypeId: string | null; maxRedemptions: number | null; expiresAt: string | null; redemptionCount: number; isActive: boolean };
         setLocalStaged({
           tiers: ((tt.ticketTypes ?? []) as ApiTier[]).map((t) => ({
@@ -186,6 +202,8 @@ export default function TicketSetup({
             maxPerOrder: t.maxPerOrder ?? 10,
             quantitySold: t.quantitySold,
             isActive: t.isActive,
+            salesStartAt: t.salesStartAt,
+            salesEndAt: t.salesEndAt,
           })),
           promos: ((pc.promoCodes ?? []) as ApiPromo[]).map((p) => ({
             id: p.id,
@@ -212,6 +230,7 @@ export default function TicketSetup({
 
   const resetTierForm = () => {
     setTName(''); setTDesc(''); setTPrice(''); setTQty(''); setTMax('');
+    setTStart(''); setTEnd('');
     setTierOpen(false);
   };
 
@@ -223,6 +242,10 @@ export default function TicketSetup({
     if (priceCents > 0 && priceCents < 50) { setError('Paid tickets must be at least $0.50 (card minimum)'); return; }
     const quantityTotal = tQty.trim() === '' ? null : Math.max(0, parseInt(tQty, 10) || 0);
     const maxPerOrder = tMax.trim() === '' ? 10 : Math.max(1, parseInt(tMax, 10) || 10);
+    if (tStart && tEnd && new Date(tEnd) <= new Date(tStart)) {
+      setError('Sale end must be after sale start');
+      return;
+    }
     const tier: DraftTier = {
       name: tName.trim(),
       description: tDesc.trim() || null,
@@ -231,6 +254,8 @@ export default function TicketSetup({
       maxPerOrder,
       quantitySold: 0,
       isActive: true,
+      salesStartAt: tStart || null,
+      salesEndAt: tEnd || null,
     };
 
     if (!live) {
@@ -244,7 +269,7 @@ export default function TicketSetup({
       const res = await fetch('/api/events/ticket-types', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyId, eventId, name: tier.name, description: tier.description, priceCents, quantityTotal, maxPerOrder, sortOrder: data.tiers.length }),
+        body: JSON.stringify({ privyId, eventId, name: tier.name, description: tier.description, priceCents, quantityTotal, maxPerOrder, sortOrder: data.tiers.length, salesStartAt: tier.salesStartAt, salesEndAt: tier.salesEndAt }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? 'Failed to add tier');
@@ -388,6 +413,8 @@ export default function TicketSetup({
                   <p className="font-mono text-[11px] opacity-40 truncate" style={{ color: 'var(--foreground)' }}>
                     {t.quantityTotal != null ? `${t.quantitySold}/${t.quantityTotal} sold` : live ? `${t.quantitySold} sold · unlimited` : 'Unlimited'}
                     {t.maxPerOrder !== 10 && ` · max ${t.maxPerOrder}/order`}
+                    {t.salesStartAt && ` · on sale ${windowLabel(t.salesStartAt)}`}
+                    {t.salesEndAt && ` · ends ${windowLabel(t.salesEndAt)}`}
                     {!t.isActive && ' · hidden'}
                     {t.description && ` · ${t.description}`}
                   </p>
@@ -411,6 +438,18 @@ export default function TicketSetup({
               <input value={tPrice} onChange={(e) => setTPrice(e.target.value)} inputMode="decimal" placeholder="Price USD" className={inputCls} />
               <input value={tQty} onChange={(e) => setTQty(e.target.value)} inputMode="numeric" placeholder="Qty (∞)" className={inputCls} />
               <input value={tMax} onChange={(e) => setTMax(e.target.value)} inputMode="numeric" placeholder="Max/order" className={inputCls} />
+            </div>
+            {/* Sale window — both optional. A future start shows the tier as
+                "on sale <date>"; a passed end keeps it listed, crossed out. */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block font-mono text-[10px] uppercase tracking-[2px] opacity-40 mb-1">Goes on sale (optional)</label>
+                <input type="datetime-local" value={tStart} onChange={(e) => setTStart(e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className="block font-mono text-[10px] uppercase tracking-[2px] opacity-40 mb-1">Sales end (optional)</label>
+                <input type="datetime-local" value={tEnd} onChange={(e) => setTEnd(e.target.value)} className={inputCls} />
+              </div>
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={addTier} disabled={busy} className="flex-1 px-4 py-2 font-mono text-[11px] uppercase tracking-[2px] rounded-lg cursor-pointer border-none font-bold disabled:opacity-40" style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}>

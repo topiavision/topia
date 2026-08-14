@@ -34,6 +34,9 @@ const statements = [
   `ALTER TABLE "ticket_orders" ADD COLUMN IF NOT EXISTS "discount_cents" integer DEFAULT 0 NOT NULL`,
   `ALTER TABLE "ticket_orders" ADD COLUMN IF NOT EXISTS "stripe_checkout_session_id" text`,
   `ALTER TABLE "ticket_orders" ADD COLUMN IF NOT EXISTS "stripe_payment_intent_id" text`,
+  // Tier sale windows (on-sale date / sale-end date).
+  `ALTER TABLE "event_ticket_types" ADD COLUMN IF NOT EXISTS "sales_start_at" timestamp`,
+  `ALTER TABLE "event_ticket_types" ADD COLUMN IF NOT EXISTS "sales_end_at" timestamp`,
 ];
 
 // FK constraints — wrapped so a duplicate (already-applied) one is ignored.
