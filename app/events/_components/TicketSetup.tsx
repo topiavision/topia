@@ -34,6 +34,39 @@ function windowLabel(iso: string): string {
   return hasTime ? `${date} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : date;
 }
 
+// ISO timestamp → <input type="datetime-local"> value in the browser's local
+// time ("YYYY-MM-DDTHH:mm"), for pre-filling the edit form.
+function toLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// datetime-local value → absolute ISO instant. MUST happen in the browser:
+// the raw "2026-08-29T00:00" string has no timezone, so if it reached the
+// server it would be read as UTC and shift by the host's UTC offset.
+// new Date() here interprets it in the host's local timezone. Idempotent for
+// values that are already ISO (live-mode data loaded from the API).
+function localToIso(v: string | null): string | null {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// Short timezone label ("PDT", "GMT+2") so hosts know which clock the sale
+// window fields use.
+const TZ_LABEL = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
+      .formatToParts(new Date())
+      .find((p) => p.type === 'timeZoneName')?.value ?? '';
+  } catch {
+    return '';
+  }
+})();
+
 export interface DraftPromo {
   id?: string;
   code: string;
@@ -81,8 +114,8 @@ export async function persistStagedTickets(
           quantityTotal: t.quantityTotal,
           maxPerOrder: t.maxPerOrder,
           sortOrder: i,
-          salesStartAt: t.salesStartAt,
-          salesEndAt: t.salesEndAt,
+          salesStartAt: localToIso(t.salesStartAt),
+          salesEndAt: localToIso(t.salesEndAt),
         }),
       });
       const d = await res.json();
@@ -112,7 +145,10 @@ export async function persistStagedTickets(
           discountValue: p.discountValue,
           ticketTypeId: restrictedTo,
           maxRedemptions: p.maxRedemptions,
-          expiresAt: p.expiresAt,
+          // A bare date means "valid through that day" — send the end of that
+          // day as an absolute instant so the server never re-reads it as UTC
+          // midnight (which would expire the code hours early).
+          expiresAt: p.expiresAt ? localToIso(`${p.expiresAt.slice(0, 10)}T23:59:59`) : null,
         }),
       });
       if (!res.ok) throw new Error('failed');
@@ -164,8 +200,9 @@ export default function TicketSetup({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Tier form
+  // Tier form — doubles as add (editTierIdx null) and edit (index set).
   const [tierOpen, setTierOpen] = useState(false);
+  const [editTierIdx, setEditTierIdx] = useState<number | null>(null);
   const [tName, setTName] = useState('');
   const [tDesc, setTDesc] = useState('');
   const [tPrice, setTPrice] = useState('');
@@ -232,6 +269,23 @@ export default function TicketSetup({
     setTName(''); setTDesc(''); setTPrice(''); setTQty(''); setTMax('');
     setTStart(''); setTEnd('');
     setTierOpen(false);
+    setEditTierIdx(null);
+  };
+
+  // Open the form pre-filled with an existing tier's values.
+  const openTierEditor = (idx: number) => {
+    const t = data.tiers[idx];
+    setTName(t.name);
+    setTDesc(t.description ?? '');
+    setTPrice(t.priceCents === 0 ? '0' : (t.priceCents / 100).toFixed(2));
+    setTQty(t.quantityTotal == null ? '' : String(t.quantityTotal));
+    setTMax(t.maxPerOrder === 10 ? '' : String(t.maxPerOrder));
+    setTStart(toLocalInput(t.salesStartAt));
+    setTEnd(toLocalInput(t.salesEndAt));
+    setEditTierIdx(idx);
+    setTierOpen(true);
+    setPromoOpen(false);
+    setError('');
   };
 
   const addTier = async () => {
@@ -258,25 +312,47 @@ export default function TicketSetup({
       salesEndAt: tEnd || null,
     };
 
+    const editing = editTierIdx != null ? data.tiers[editTierIdx] : null;
+
     if (!live) {
-      setData({ ...data, tiers: [...data.tiers, tier] });
+      // Staged: append, or replace in place (keeping sold/active bookkeeping).
+      const tiers =
+        editTierIdx != null
+          ? data.tiers.map((x, i) => (i === editTierIdx ? { ...x, ...tier, quantitySold: x.quantitySold, isActive: x.isActive } : x))
+          : [...data.tiers, tier];
+      setData({ ...data, tiers });
       resetTierForm();
       return;
     }
 
     setBusy(true);
     try {
+      // Dates convert to absolute instants here in the browser (localToIso) so
+      // the server never guesses a timezone.
+      const fields = {
+        name: tier.name,
+        description: tier.description,
+        priceCents,
+        quantityTotal,
+        maxPerOrder,
+        salesStartAt: localToIso(tier.salesStartAt),
+        salesEndAt: localToIso(tier.salesEndAt),
+      };
       const res = await fetch('/api/events/ticket-types', {
-        method: 'POST',
+        method: editing?.id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyId, eventId, name: tier.name, description: tier.description, priceCents, quantityTotal, maxPerOrder, sortOrder: data.tiers.length, salesStartAt: tier.salesStartAt, salesEndAt: tier.salesEndAt }),
+        body: JSON.stringify(
+          editing?.id
+            ? { privyId, id: editing.id, ...fields }
+            : { privyId, eventId, sortOrder: data.tiers.length, ...fields },
+        ),
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error ?? 'Failed to add tier');
+      if (!res.ok) throw new Error(d.error ?? 'Failed to save tier');
       resetTierForm();
       loadLive();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add tier');
+      setError(e instanceof Error ? e.message : 'Failed to save tier');
     } finally {
       setBusy(false);
     }
@@ -343,7 +419,7 @@ export default function TicketSetup({
       const res = await fetch('/api/events/promo-codes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyId, eventId, code, discountType: pType, discountValue, ticketTypeId: pTier || null, maxRedemptions, expiresAt }),
+        body: JSON.stringify({ privyId, eventId, code, discountType: pType, discountValue, ticketTypeId: pTier || null, maxRedemptions, expiresAt: expiresAt ? localToIso(`${expiresAt}T23:59:59`) : null }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? 'Failed to add code');
@@ -419,6 +495,7 @@ export default function TicketSetup({
                     {t.description && ` · ${t.description}`}
                   </p>
                 </div>
+                <button type="button" onClick={() => openTierEditor(i)} className="shrink-0 font-mono text-[14px] opacity-50 hover:opacity-100 bg-transparent border-none cursor-pointer" title="Edit" style={{ color: 'var(--foreground)' }}>✎</button>
                 {live && t.id && (
                   <button type="button" onClick={() => toggleTier(i)} className="shrink-0 font-mono text-[11px] underline cursor-pointer bg-transparent border-none" style={{ color: 'var(--foreground)' }}>
                     {t.isActive ? 'Hide' : 'Show'}
@@ -443,17 +520,17 @@ export default function TicketSetup({
                 "on sale <date>"; a passed end keeps it listed, crossed out. */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block font-mono text-[10px] uppercase tracking-[2px] opacity-40 mb-1">Goes on sale (optional)</label>
+                <label className="block font-mono text-[10px] uppercase tracking-[2px] opacity-40 mb-1">Goes on sale{TZ_LABEL && ` · ${TZ_LABEL}`}</label>
                 <input type="datetime-local" value={tStart} onChange={(e) => setTStart(e.target.value)} className={inputCls} />
               </div>
               <div>
-                <label className="block font-mono text-[10px] uppercase tracking-[2px] opacity-40 mb-1">Sales end (optional)</label>
+                <label className="block font-mono text-[10px] uppercase tracking-[2px] opacity-40 mb-1">Sales end{TZ_LABEL && ` · ${TZ_LABEL}`}</label>
                 <input type="datetime-local" value={tEnd} onChange={(e) => setTEnd(e.target.value)} className={inputCls} />
               </div>
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={addTier} disabled={busy} className="flex-1 px-4 py-2 font-mono text-[11px] uppercase tracking-[2px] rounded-lg cursor-pointer border-none font-bold disabled:opacity-40" style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}>
-                {busy ? 'Saving…' : live ? 'Save tier' : 'Add tier'}
+                {busy ? 'Saving…' : editTierIdx != null ? 'Save changes' : live ? 'Save tier' : 'Add tier'}
               </button>
               <button type="button" onClick={resetTierForm} className="px-4 py-2 font-mono text-[11px] uppercase tracking-[2px] rounded-lg cursor-pointer border bg-transparent" style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}>
                 Cancel
@@ -461,7 +538,7 @@ export default function TicketSetup({
             </div>
           </div>
         ) : (
-          <button type="button" onClick={() => { setTierOpen(true); setPromoOpen(false); setError(''); }} className={dashedBtnCls} style={{ borderColor: 'var(--border-color)', color: 'var(--foreground)' }}>
+          <button type="button" onClick={() => { setEditTierIdx(null); setTierOpen(true); setPromoOpen(false); setError(''); }} className={dashedBtnCls} style={{ borderColor: 'var(--border-color)', color: 'var(--foreground)' }}>
             + Add ticket tier
           </button>
         )}
