@@ -59,12 +59,20 @@ export const viewport: Viewport = {
 const themeScript = `
   (function() {
     try {
-      var theme = localStorage.getItem('topia-theme');
-      if (theme !== 'light') {
-        document.documentElement.setAttribute('data-theme', 'dark');
+      // One-time reset: browsers that got stranded in light mode before the
+      // theme guard shipped still carry topia-theme='light'. Clear it once so
+      // everyone returns to the dark default; toggles made after this persist
+      // normally.
+      if (!localStorage.getItem('topia-theme-reset-v1')) {
+        localStorage.removeItem('topia-theme');
+        localStorage.setItem('topia-theme-reset-v1', '1');
       }
+      var theme = localStorage.getItem('topia-theme');
+      document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
       localStorage.removeItem('topia-accent-index');
-    } catch(e) {}
+    } catch(e) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
   })();
 `;
 
