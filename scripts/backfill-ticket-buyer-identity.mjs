@@ -12,6 +12,12 @@
 //   node scripts/backfill-ticket-buyer-identity.mjs            # dry run (default)
 //   node scripts/backfill-ticket-buyer-identity.mjs --apply    # write
 //
+// NOTE ON THE KEY: `vercel env pull` will NOT give you STRIPE_SECRET_KEY — it's
+// flagged Sensitive in Vercel, which is write-only by design, and pulls back the
+// literal string "[SENSITIVE]". Either use a key you already hold, or create a
+// Stripe restricted key (rk_live_…) with Checkout Sessions = Read, which is the
+// only permission this script needs. Revoke it when you're done.
+//
 // Safe to re-run: once the blanks are filled it's a no-op.
 import { config } from 'dotenv';
 import { Pool } from '@neondatabase/serverless';
