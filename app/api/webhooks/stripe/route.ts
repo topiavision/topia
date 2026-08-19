@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db, ticketOrders } from '@/lib/db';
 import { stripeClient, STRIPE_WEBHOOK_SECRET } from '@/lib/stripe';
 import { fulfillOrder, failOrder, refundOrder } from '@/lib/payments/tickets';
+import { applyStripeCustomerDetails } from '@/lib/payments/buyerIdentity';
 
 // Stripe calls this URL on payment lifecycle events. It is the source of truth
 // for finalizing orders: the status endpoint also fulfills as a fallback after
@@ -39,6 +40,15 @@ export async function POST(request: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.metadata?.orderId ?? session.client_reference_id;
         if (orderId && session.payment_status === 'paid') {
+          // Reconcile identity BEFORE fulfilling: fulfillOrder sends the ticket
+          // confirmation off order.buyerEmail, so a blank filled here is the
+          // difference between the buyer getting their ticket and not. Fills
+          // blanks only — never overwrites what they entered on Topia.
+          try {
+            await applyStripeCustomerDetails(orderId, session.customer_details);
+          } catch (err) {
+            console.error('[stripe-webhook] buyer identity reconcile failed:', err);
+          }
           await fulfillOrder(orderId, {
             stripeCheckoutSessionId: session.id,
             stripePaymentIntentId:
