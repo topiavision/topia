@@ -7,7 +7,8 @@ import { fulfillOrder, failOrder } from '@/lib/payments/tickets';
 import { formatUsd } from '@/lib/payments/config';
 
 // POST /api/checkout/stripe
-// Body: { privyId, ticketTypeId, quantity, promoCode?, buyerEmail? }
+// Body: { privyId, ticketTypeId, quantity, promoCode?,
+//         buyerFirstName, buyerLastName, buyerEmail }
 //
 // Creates a pending order (price + promo snapshotted server-side) and a Stripe
 // Checkout Session for it, then returns the session URL for the browser to
@@ -21,13 +22,15 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
-    const { privyId, ticketTypeId, quantity, promoCode, buyerEmail } = data;
+    const { privyId, ticketTypeId, quantity, promoCode, buyerFirstName, buyerLastName, buyerEmail } = data;
 
     const result = await createPendingOrder({
       privyId,
       ticketTypeId,
       quantity: Number(quantity) || 1,
       rail: 'stripe',
+      buyerFirstName,
+      buyerLastName,
       buyerEmail,
       promoCode,
     });
@@ -62,6 +65,8 @@ export async function POST(request: NextRequest) {
       const session = await stripeClient().checkout.sessions.create({
         mode: 'payment',
         client_reference_id: order.id,
+        // Always set: createPendingOrder guarantees a valid buyerEmail, so
+        // Stripe prefills rather than asking again.
         customer_email: order.buyerEmail ?? undefined,
         // One line item carrying the already-discounted order total: promo
         // math is ours (it must also cover any future rails), so Stripe just

@@ -825,6 +825,15 @@ export const ticketOrders = pgTable('ticket_orders', {
   currency: text('currency').notNull().default('USD'),
   rail: text('rail').notNull(),                          // 'stripe' (legacy rows: 'square' | 'crypto')
   status: text('status').notNull().default('pending'),   // 'pending'|'paid'|'failed'|'refunded'|'cancelled'
+  // ── Buyer identity (sales record, NOT the passport profile) ──
+  // Captured on the Topia checkout screen before the Stripe redirect, so a
+  // buyer who logged in with SMS-only still has a name and a reachable email
+  // on the order. Deliberately separate from users.name/users.email: a ticket
+  // is a transaction, and the host's door list must not depend on how complete
+  // someone's profile happens to be. The webhook back-fills any of these left
+  // blank from Stripe's own customer_details.
+  buyerFirstName: text('buyer_first_name'),
+  buyerLastName: text('buyer_last_name'),
   buyerEmail: text('buyer_email'),
   // ── Promo code (snapshot at purchase; amountCents is already discounted) ──
   promoCodeId: uuid('promo_code_id').references(() => eventPromoCodes.id),

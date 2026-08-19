@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { splitFullName } from '../../../lib/payments/buyerIdentity';
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 
@@ -82,6 +83,15 @@ export default function TicketPurchase({
   const [notice, setNotice] = useState(''); // non-modal banner (e.g. cancelled checkout)
   const [result, setResult] = useState<{ ticketCount: number } | null>(null);
 
+  // Buyer details. A ticket is a transaction, not a profile — the host needs a
+  // real name at the door and an address to send the ticket to, and a buyer who
+  // signed in with SMS has neither on their profile. Prefilled where the profile
+  // does have them, always editable.
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [buyerEmail, setBuyerEmail] = useState('');
+  const [touched, setTouched] = useState(false);
+
   // Promo code entry.
   const [promoInput, setPromoInput] = useState('');
   const [promo, setPromo] = useState<PromoState>({ status: 'none' });
@@ -114,6 +124,24 @@ export default function TicketPurchase({
   useEffect(() => {
     if (ready) loadOwned();
   }, [ready, loadOwned]);
+
+  // Prefill buyer details from the profile. users.name is a single field, so
+  // split it into first/last — a one-word profile name leaves the last-name box
+  // empty for the buyer to complete rather than guessing at it.
+  useEffect(() => {
+    if (!authenticated || !user?.id) return;
+    fetch(`/api/auth/profile?privyId=${encodeURIComponent(user.id)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const u = d.user;
+        if (!u) return;
+        const { first, last } = splitFullName(u.name);
+        setFirstName((prev) => prev || first);
+        setLastName((prev) => prev || last);
+        setBuyerEmail((prev) => prev || u.email || '');
+      })
+      .catch(() => {});
+  }, [authenticated, user?.id]);
 
   // Detect the return leg from Stripe Checkout and clean the URL so refreshes
   // don't re-trigger it.
@@ -235,6 +263,11 @@ export default function TicketPurchase({
 
   const pay = async () => {
     if (!selected || !user?.id) return;
+    if (!buyerDetailsValid) {
+      setTouched(true);
+      setMessage('Add your first name, last name and email to continue.');
+      return;
+    }
     setPhase('redirecting');
     setMessage('');
     try {
@@ -245,6 +278,9 @@ export default function TicketPurchase({
           privyId: user.id,
           ticketTypeId: selected.id,
           quantity,
+          buyerFirstName: firstName.trim(),
+          buyerLastName: lastName.trim(),
+          buyerEmail: buyerEmail.trim(),
           promoCode: promo.status === 'applied' ? promo.code : undefined,
         }),
       });
@@ -270,6 +306,10 @@ export default function TicketPurchase({
   // just-completed purchase (tiers may still be loading on the return leg).
   const confirmingReturn = phase === 'confirming' || (phase === 'success' && returnOrderId != null);
   if ((!tiers || tiers.length === 0) && !confirmingReturn) return null;
+
+  // Mirrors the server check in createPendingOrder — keep the two in step.
+  const emailLooksValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyerEmail.trim());
+  const buyerDetailsValid = Boolean(firstName.trim() && lastName.trim() && emailLooksValid);
 
   const subtotalCents = selected ? selected.priceCents * quantity : 0;
   const totalCents = promo.status === 'applied' ? promo.totalCents : subtotalCents;
@@ -439,6 +479,66 @@ export default function TicketPurchase({
                   <button onClick={close} className="font-mono text-[18px] opacity-50 hover:opacity-100 bg-transparent border-none cursor-pointer" style={{ color: 'var(--foreground)' }} aria-label="Close">×</button>
                 </div>
 
+                {/* Buyer details — required for every tier, paid or free. The
+                    host reads these at the door and the ticket email goes to
+                    this address, so they can't fall back to a half-built
+                    profile. 16px inputs: anything smaller and iOS zooms. */}
+                <div className="mb-4 space-y-2">
+                  <p className="font-mono text-[11px] uppercase tracking-widest opacity-50" style={{ color: 'var(--foreground)' }}>
+                    Ticket holder
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      onBlur={() => setTouched(true)}
+                      placeholder="First name"
+                      autoComplete="given-name"
+                      aria-label="First name"
+                      className="flex-1 min-w-0 px-3 py-2.5 font-mono text-[16px] rounded-lg border bg-transparent outline-none"
+                      style={{
+                        color: 'var(--foreground)',
+                        borderColor: touched && !firstName.trim() ? '#ff6b6b' : 'var(--border-color)',
+                      }}
+                    />
+                    <input
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      onBlur={() => setTouched(true)}
+                      placeholder="Last name"
+                      autoComplete="family-name"
+                      aria-label="Last name"
+                      className="flex-1 min-w-0 px-3 py-2.5 font-mono text-[16px] rounded-lg border bg-transparent outline-none"
+                      style={{
+                        color: 'var(--foreground)',
+                        borderColor: touched && !lastName.trim() ? '#ff6b6b' : 'var(--border-color)',
+                      }}
+                    />
+                  </div>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    value={buyerEmail}
+                    onChange={(e) => setBuyerEmail(e.target.value)}
+                    onBlur={() => setTouched(true)}
+                    placeholder="Email for your ticket"
+                    autoComplete="email"
+                    aria-label="Email"
+                    className="w-full px-3 py-2.5 font-mono text-[16px] rounded-lg border bg-transparent outline-none"
+                    style={{
+                      color: 'var(--foreground)',
+                      borderColor: touched && !emailLooksValid ? '#ff6b6b' : 'var(--border-color)',
+                    }}
+                  />
+                  {touched && !buyerDetailsValid && (
+                    <p className="font-mono text-[12px]" style={{ color: '#ff6b6b' }}>
+                      {!firstName.trim() || !lastName.trim()
+                        ? 'First and last name are required.'
+                        : 'Enter a valid email — your ticket is sent there.'}
+                    </p>
+                  )}
+                </div>
+
                 {/* Quantity */}
                 <div className="flex items-center justify-between mb-4">
                   <span className="font-mono text-[13px]" style={{ color: 'var(--foreground)' }}>Quantity</span>
@@ -462,7 +562,7 @@ export default function TicketPurchase({
                           }}
                           onKeyDown={(e) => { if (e.key === 'Enter') applyPromo(); }}
                           placeholder="Promo code"
-                          className="flex-1 min-w-0 px-3 py-2 font-mono text-[13px] uppercase rounded-lg border bg-transparent"
+                          className="flex-1 min-w-0 px-3 py-2.5 font-mono text-[16px] uppercase rounded-lg border bg-transparent"
                           style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
                         />
                         <button
@@ -517,7 +617,7 @@ export default function TicketPurchase({
 
                 <button
                   onClick={pay}
-                  disabled={phase === 'redirecting'}
+                  disabled={phase === 'redirecting' || !buyerDetailsValid}
                   className="w-full px-4 py-3 font-mono text-[12px] uppercase tracking-widest rounded-lg cursor-pointer border-none font-bold disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}
                 >

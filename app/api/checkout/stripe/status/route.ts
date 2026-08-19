@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, ticketOrders, tickets, users } from '@/lib/db';
 import { stripeClient, isStripeConfigured } from '@/lib/stripe';
 import { fulfillOrder, failOrder } from '@/lib/payments/tickets';
+import { applyStripeCustomerDetails } from '@/lib/payments/buyerIdentity';
 
 // GET /api/checkout/stripe/status?orderId=...&privyId=...
 //
@@ -36,6 +37,13 @@ export async function GET(request: NextRequest) {
       try {
         const session = await stripeClient().checkout.sessions.retrieve(order.stripeCheckoutSessionId);
         if (session.payment_status === 'paid') {
+          // Same blank-fill reconcile the webhook does — this path runs when
+          // the webhook never arrived, so it has to stand on its own.
+          try {
+            await applyStripeCustomerDetails(order.id, session.customer_details);
+          } catch (err) {
+            console.error('[checkout-status] buyer identity reconcile failed:', err);
+          }
           await fulfillOrder(order.id, {
             stripePaymentIntentId:
               typeof session.payment_intent === 'string'

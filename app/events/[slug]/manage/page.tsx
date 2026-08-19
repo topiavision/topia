@@ -27,8 +27,16 @@ interface Host { userId: string; role: string; name: string | null; username: st
 interface SearchUser { id: string; name: string | null; username: string | null; avatarUrl: string | null; }
 interface Question { id: string; label: string; type: string; options: string[] | null; required: boolean; sortOrder: number | null; isActive: boolean; }
 interface Response { questionId: string; label: string; type: string; answer: string | string[] | boolean | null; }
-interface Rsvp { userId: string; name: string | null; username: string | null; avatarUrl: string | null; email: string | null; phone: string | null; status: string; responses: Response[] | null; createdAt: string; }
+// `ticket` is present only for guests who bought — the API overlays their paid
+// order so a buyer with an empty profile still shows a real name and email.
+interface RsvpTicket { tierName: string | null; tickets: number; spentCents: number; promoCode: string | null; purchasedAt: string; }
+interface Rsvp { userId: string; name: string | null; username: string | null; avatarUrl: string | null; email: string | null; phone: string | null; firstName: string | null; lastName: string | null; ticket: RsvpTicket | null; status: string; responses: Response[] | null; createdAt: string; }
 interface Invite { id: string; email: string | null; phone: string | null; status: string; sent: boolean; url: string | null; }
+
+// Money is integer cents everywhere — format at the edge, never store floats.
+function usdCents(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
 
 const inputCls = 'w-full border px-3 py-2 font-mono text-[13px] rounded-lg outline-none';
 const fieldStyle: React.CSSProperties = { backgroundColor: 'var(--background)', color: 'var(--foreground)', borderColor: 'var(--border-color)' };
@@ -1269,10 +1277,31 @@ function GuestsTab({ eventId, eventName, privyId, capacity }: { eventId: string;
 
   const exportCsv = () => {
     const qCols = Array.from(new Set(rsvps.flatMap((r) => (r.responses ?? []).map((x) => x.label))));
-    const header = ['Name', 'Email', 'Phone', 'Status', 'Registered', ...qCols];
+    // First/last are their own columns — a door list and a mail merge both want
+    // them split, and re-splitting a joined name downstream is guesswork.
+    const header = [
+      'First Name', 'Last Name', 'Name', 'Email', 'Phone', 'Status', 'Registered',
+      'Ticket Tier', 'Tickets', 'Paid', 'Promo Code', 'Purchased',
+      ...qCols,
+    ];
     const rows = rsvps.map((r) => {
       const map = new Map((r.responses ?? []).map((x) => [x.label, answerToText(x.answer)]));
-      return [r.name ?? '', r.email ?? '', r.phone ?? '', r.status, new Date(r.createdAt).toISOString().slice(0, 10), ...qCols.map((c) => map.get(c) ?? '')];
+      // Fall back to splitting the display name for guests who registered
+      // through the RSVP form (one name field) rather than buying a ticket.
+      const parts = (r.name ?? '').trim().split(/\s+/).filter(Boolean);
+      const first = r.firstName ?? (parts.length > 1 ? parts[0] : parts[0] ?? '');
+      const last = r.lastName ?? (parts.length > 1 ? parts.slice(1).join(' ') : '');
+      return [
+        first, last,
+        r.name ?? '', r.email ?? '', r.phone ?? '', r.status,
+        new Date(r.createdAt).toISOString().slice(0, 10),
+        r.ticket?.tierName ?? '',
+        r.ticket ? String(r.ticket.tickets) : '',
+        r.ticket ? (r.ticket.spentCents / 100).toFixed(2) : '',
+        r.ticket?.promoCode ?? '',
+        r.ticket ? new Date(r.ticket.purchasedAt).toISOString().slice(0, 10) : '',
+        ...qCols.map((c) => map.get(c) ?? ''),
+      ];
     });
     const csv = [header, ...rows].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -1281,6 +1310,13 @@ function GuestsTab({ eventId, eventName, privyId, capacity }: { eventId: string;
     a.href = url; a.download = `${eventName}-guests.csv`; a.click();
     URL.revokeObjectURL(url);
   };
+
+  // Ticketed-guest rollup, straight off the same rows the list renders — no
+  // second fetch, and it can't drift from what the host sees below.
+  const ticketHolders = rsvps.filter((r) => r.ticket != null).length;
+  const grossCents = rsvps.reduce((sum, r) => sum + (r.ticket?.spentCents ?? 0), 0);
+  // Guests a host can't reach or identify — the thing that started all this.
+  const incompleteCount = rsvps.filter((r) => !r.name?.trim() || !r.email?.trim()).length;
 
   const pendingList = rsvps.filter((r) => r.status === 'pending');
   const goingList = rsvps.filter((r) => r.status === 'going');
@@ -1302,6 +1338,9 @@ function GuestsTab({ eventId, eventName, privyId, capacity }: { eventId: string;
           <span className="font-bold">{going}</span> going{capacity != null && ` / ${capacity}`}
           {pending > 0 && <span className="opacity-60"> · {pending} pending</span>}
           {waitlisted > 0 && <span className="opacity-60"> · {waitlisted} waitlisted</span>}
+          {ticketHolders > 0 && (
+            <span className="opacity-60"> · {ticketHolders} ticketed ({usdCents(grossCents)})</span>
+          )}
         </p>
         {rsvps.length > 0 && <button onClick={exportCsv} className={btnGhost} style={fieldStyle}>Export CSV</button>}
       </div>
@@ -1311,6 +1350,16 @@ function GuestsTab({ eventId, eventName, privyId, capacity }: { eventId: string;
 
       {decideMsg && (
         <p className="font-mono text-[12px] mb-3 opacity-70" style={{ color: 'var(--foreground)' }}>{decideMsg}</p>
+      )}
+
+      {incompleteCount > 0 && (
+        <p
+          className="font-mono text-[12px] mb-3 px-3 py-2 rounded-lg border"
+          style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
+        >
+          <span className="font-bold">{incompleteCount}</span> guest{incompleteCount > 1 ? 's are' : ' is'} missing a name or email.
+          These registered before those fields were required at checkout — everyone buying from now on has to provide both.
+        </p>
       )}
 
       {pendingList.length > 0 && (
@@ -1406,6 +1455,7 @@ function GuestsTab({ eventId, eventName, privyId, capacity }: { eventId: string;
 
 function GuestRow({ r, expanded, onToggle, actions }: { r: Rsvp; expanded: boolean; onToggle: () => void; actions?: React.ReactNode }) {
   const hasAnswers = (r.responses ?? []).length > 0;
+  const hasDetail = hasAnswers || r.ticket != null;
   return (
     <div className="border rounded-lg px-3 py-2" style={{ borderColor: 'var(--border-color)' }}>
       <div className="flex items-center gap-3">
@@ -1413,22 +1463,55 @@ function GuestRow({ r, expanded, onToggle, actions }: { r: Rsvp; expanded: boole
           ? <img src={r.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
           : <div className="w-7 h-7 rounded-full flex items-center justify-center font-mono text-[11px] font-bold" style={{ backgroundColor: 'var(--surface-hover)', color: 'var(--foreground)' }}>{(r.name || r.username || '?')[0].toUpperCase()}</div>}
         <div className="flex-1 min-w-0">
-          <p className="font-mono text-[12px] font-bold truncate" style={{ color: 'var(--foreground)' }}>{r.name || r.username || 'Guest'}</p>
+          <p className="font-mono text-[12px] font-bold truncate flex items-center gap-1.5" style={{ color: 'var(--foreground)' }}>
+            <span className="truncate">{r.name || r.username || 'Guest'}</span>
+            {r.ticket && (
+              <span
+                className="font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded shrink-0 font-bold"
+                style={{ backgroundColor: 'var(--lime)', color: 'var(--obsidian)' }}
+                title={`${r.ticket.tickets} × ${r.ticket.tierName ?? 'ticket'}`}
+              >
+                {r.ticket.tickets > 1 ? `${r.ticket.tickets} tickets` : 'Ticket'}
+              </span>
+            )}
+          </p>
           {(r.email || r.phone) && (
             <p className="font-mono text-[11px] opacity-40 truncate" style={{ color: 'var(--foreground)' }}>
               {[r.email, r.phone].filter(Boolean).join(' · ')}
             </p>
           )}
+          {/* No name at all — say so plainly instead of showing a bare phone
+              number and leaving the host to guess who it is. */}
+          {!r.name && !r.username && (
+            <p className="font-mono text-[11px] italic opacity-40" style={{ color: 'var(--foreground)' }}>
+              No name on file
+            </p>
+          )}
         </div>
         {actions}
-        {hasAnswers && (
+        {hasDetail && (
           <button onClick={onToggle} className="font-mono text-[11px] uppercase underline cursor-pointer bg-transparent border-none opacity-60" style={{ color: 'var(--foreground)' }}>
-            {expanded ? 'Hide' : 'Answers'}
+            {expanded ? 'Hide' : r.ticket && !hasAnswers ? 'Order' : 'Details'}
           </button>
         )}
       </div>
-      {expanded && hasAnswers && (
+      {expanded && (
         <div className="mt-2 pt-2 border-t space-y-1.5" style={{ borderColor: 'var(--border-color)' }}>
+          {r.ticket && (
+            <>
+              {(r.firstName || r.lastName) && (
+                <div className="font-mono text-[12px]" style={{ color: 'var(--foreground)' }}>
+                  <span className="opacity-50">Ticket holder: </span>{[r.firstName, r.lastName].filter(Boolean).join(' ')}
+                </div>
+              )}
+              <div className="font-mono text-[12px]" style={{ color: 'var(--foreground)' }}>
+                <span className="opacity-50">Purchased: </span>
+                {r.ticket.tickets} × {r.ticket.tierName ?? 'ticket'} · {usdCents(r.ticket.spentCents)}
+                {r.ticket.promoCode && <span className="opacity-50"> · promo {r.ticket.promoCode}</span>}
+                <span className="opacity-50"> · {new Date(r.ticket.purchasedAt).toLocaleDateString()}</span>
+              </div>
+            </>
+          )}
           {(r.responses ?? []).map((x, i) => (
             <div key={i} className="font-mono text-[12px]" style={{ color: 'var(--foreground)' }}>
               <span className="opacity-50">{x.label}: </span>{answerToText(x.answer)}
