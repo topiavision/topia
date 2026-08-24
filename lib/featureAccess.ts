@@ -1,40 +1,36 @@
-/* Per-user feature access, for phased rollout.
+/* Per-user feature access.
  *
- * Two layers, and the distinction matters:
+ * Funding is OFF for every account until an admin switches it on for that
+ * specific person, from the admin dashboard's Users tab. There is deliberately
+ * no "enable for everyone" flag: a money feature should not be one env var
+ * away from being live for the whole platform, and general availability — if
+ * it ever comes — should be a considered change, not a checkbox.
  *
- *   - The NEXT_PUBLIC_* flag in lib/featureFlags.ts means GENERALLY AVAILABLE.
- *     When it is on, everyone has the feature and this module is a no-op.
- *   - A user_feature_flags row means "this person, ahead of general
- *     availability" — the pilot cohort.
+ * So access is exactly: a grant row exists and is enabled, AND the kill switch
+ * is not thrown. The kill switch can only ever SUBTRACT — it disables funding
+ * platform-wide in an emergency and can never hand access to anyone.
  *
- * So a limited rollout runs with the env flag OFF and rows granted from the
- * admin dashboard; flipping the env flag later opens the gates without having
- * to touch the allowlist, and turning it back off returns to exactly the pilot
- * group rather than to nobody.
- *
- * This is server-side and authoritative. The client mirrors it for rendering
- * (see the profile payload), but every route re-checks — a hidden button is a
- * courtesy, not a gate.
+ * This module is server-side and authoritative. The client mirrors it for
+ * rendering (see the profile payload), but every route re-checks — a hidden
+ * button is a courtesy, not a gate.
  */
 import { and, eq, inArray } from 'drizzle-orm';
 import { db, userFeatureFlags } from '@/lib/db';
-import { FUNDING_ENABLED } from '@/lib/featureFlags';
+import { FUNDING_KILL_SWITCH } from '@/lib/featureFlags';
 
 export const FEATURE_FUNDING = 'funding';
 
-/** Features that are generally available right now, from build-time flags. */
-function generallyAvailable(): Set<string> {
-  const s = new Set<string>();
-  if (FUNDING_ENABLED) s.add(FEATURE_FUNDING);
-  return s;
+/** Features currently switched off platform-wide, regardless of grants. */
+function killed(feature: string): boolean {
+  return feature === FEATURE_FUNDING && FUNDING_KILL_SWITCH;
 }
 
-/** Does this user have the feature — by general availability or by grant? */
+/** Does this user have the feature? Grant-only — nothing else grants it. */
 export async function hasFeature(
   userId: string | null | undefined,
   feature: string,
 ): Promise<boolean> {
-  if (generallyAvailable().has(feature)) return true;
+  if (killed(feature)) return false;
   if (!userId) return false;
 
   const [row] = await db
@@ -45,19 +41,19 @@ export async function hasFeature(
   return Boolean(row?.enabled);
 }
 
-/** Every feature this user can see — for the profile payload the client
- *  renders from. One query rather than one per feature. */
+/** Every feature this user has been granted — for the profile payload the
+ *  client renders from. One query rather than one per feature. */
 export async function featuresForUser(userId: string | null | undefined): Promise<string[]> {
-  const ga = generallyAvailable();
-  if (!userId) return [...ga];
+  if (!userId) return [];
 
   const rows = await db
     .select({ feature: userFeatureFlags.feature, enabled: userFeatureFlags.enabled })
     .from(userFeatureFlags)
     .where(eq(userFeatureFlags.userId, userId));
 
-  for (const r of rows) if (r.enabled) ga.add(r.feature);
-  return [...ga];
+  return rows
+    .filter((r) => r.enabled && !killed(r.feature))
+    .map((r) => r.feature);
 }
 
 /** Which of these users have the feature. Used where the gate depends on
@@ -67,8 +63,7 @@ export async function usersWithFeature(
   userIds: string[],
   feature: string,
 ): Promise<Set<string>> {
-  if (generallyAvailable().has(feature)) return new Set(userIds);
-  if (userIds.length === 0) return new Set();
+  if (killed(feature) || userIds.length === 0) return new Set();
 
   const rows = await db
     .select({ userId: userFeatureFlags.userId })
