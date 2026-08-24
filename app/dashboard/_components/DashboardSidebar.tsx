@@ -5,11 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useDashboard } from './DashboardContext';
 import { useSidebar } from './SidebarContext';
-import { FUNDING_ENABLED } from '@/lib/featureFlags';
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
-  const { worldMemberships, profile } = useDashboard();
+  const { worldMemberships, profile, features } = useDashboard();
   const { collapsed, toggle } = useSidebar();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement>(null);
@@ -58,11 +57,11 @@ export default function DashboardSidebar() {
   const personalItems = [
     { label: 'Overview', href: '/dashboard' },
     { label: 'Events', href: '/dashboard/events' },
-    // Personal, not per-world: one Stripe account covers every world you admin
-    // and every event you host. Hidden until funding ships, matching how
-    // PAYMENTS_ENABLED gates the ticketing UI — the page itself still renders
-    // its own "not switched on" state for anyone who has the URL.
-    ...(FUNDING_ENABLED ? [{ label: 'Payouts', href: '/dashboard/payouts' }] : []),
+    /* Personal, not per-world: one Stripe account covers every world you admin
+     * and every event you host. Shown only to accounts granted funding — the
+     * phased rollout — and the page itself still renders its own "not switched
+     * on" state for anyone who reaches the URL without the grant. */
+    ...(features.includes('funding') ? [{ label: 'Payouts', href: '/dashboard/payouts' }] : []),
   ];
 
   /* ── Context switcher ─────────────────────────────────── */

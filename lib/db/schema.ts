@@ -1111,3 +1111,26 @@ export const contributions = pgTable('contributions', {
   // enforced by the database rather than by care.
   uniqueIndex('contributions_session_uniq').on(t.stripeCheckoutSessionId),
 ]);
+
+/* ── Per-user feature access ───────────────────────────────────────────
+ * Phased rollout, granted from the admin dashboard. The product plan calls
+ * for shipping funding to a limited cohort first (legal review, then the
+ * Restless Egg accelerator group) before general availability, and the same
+ * pattern is expected for minting and other later phases — hence a general
+ * (user, feature) table rather than a boolean column per feature.
+ *
+ * Semantics live in lib/featureAccess.ts: the NEXT_PUBLIC_* env flag means
+ * GENERALLY AVAILABLE, and a row here means "this person, ahead of that". */
+export const userFeatureFlags = pgTable('user_feature_flags', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  feature: text('feature').notNull(),                    // e.g. 'funding'
+  enabled: boolean('enabled').notNull().default(true),
+  // Who granted it, for an audit trail — this gates money features.
+  grantedBy: uuid('granted_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('user_feature_flags_user_feature_uniq').on(t.userId, t.feature),
+  index('user_feature_flags_feature_idx').on(t.feature),
+]);

@@ -8,6 +8,7 @@ import {
   platformFeeBps,
   V2_ACCOUNT_INCLUDE,
 } from '@/lib/payments/connect';
+import { hasFeature, FEATURE_FUNDING } from '@/lib/featureAccess';
 import { authenticate, NO_STORE } from '../auth';
 
 // How stale a cached account row may be before we ask Stripe directly. The
@@ -32,6 +33,15 @@ export async function GET(request: NextRequest) {
     );
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status, headers: NO_STORE });
+    }
+
+    /* Phased rollout: someone outside the pilot cohort sees exactly what they
+     * would see before launch, rather than a 403 they can't act on. */
+    if (!(await hasFeature(auth.userId, FEATURE_FUNDING))) {
+      return NextResponse.json(
+        { configured: false, account: null, canAccept: false, platformFeeBps: platformFeeBps() },
+        { headers: NO_STORE },
+      );
     }
 
     if (!isConnectConfigured()) {

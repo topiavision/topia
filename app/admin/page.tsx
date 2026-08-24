@@ -118,6 +118,7 @@ interface UserRow {
   createdAt?: string;
   feedbackRef?: string; // opaque ref shown on feedback issues (server-computed)
   worldMemberships: { worldId: string; role: string; worldTitle: string; worldSlug: string }[];
+  features?: string[]; // phased-rollout grants, e.g. ['funding']
 }
 
 type Tab = 'worlds' | 'users' | 'creators' | 'events' | 'grants' | 'tools' | 'catalysts' | 'tv' | 'projects' | 'links' | 'emails' | 'broadcast' | 'newsletter';
@@ -1138,6 +1139,21 @@ function UsersTab() {
     if (!res.ok) { setError('Failed to update visibility'); load(); }
   };
 
+  /* Phased rollout: grant or revoke a feature for one person. Optimistic like
+   * togglePublished, and reloads on failure so the pill never lies. */
+  const toggleFeature = async (item: UserRow, feature: string) => {
+    const has = (item.features || []).includes(feature);
+    setItems((prev) => prev.map((u) => (u.id === item.id
+      ? { ...u, features: has ? (u.features || []).filter((f) => f !== feature) : [...(u.features || []), feature] }
+      : u)));
+    const res = await adminFetch('/api/admin/features', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: item.id, feature, enabled: !has }),
+    });
+    if (!res.ok) { setError(`Failed to update ${feature} access`); load(); }
+  };
+
   const filtered = items.filter(u => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -1185,6 +1201,7 @@ function UsersTab() {
               <th className="text-left px-3 py-2 font-bold uppercase text-[12px]">Role</th>
               <th className="text-left px-3 py-2 font-bold uppercase text-[12px]">Worlds</th>
               <th className="text-left px-3 py-2 font-bold uppercase text-[12px]">Visibility</th>
+              <th className="text-left px-3 py-2 font-bold uppercase text-[12px]">Funding</th>
               <th className="px-3 py-2 text-[12px]"></th>
             </tr>
           </thead>
@@ -1234,6 +1251,21 @@ function UsersTab() {
                     style={{ backgroundColor: item.published ? '#00FF88' : '#FF5C34', color: '#1a1a1a', borderColor: '#1a1a1a' }}
                   >
                     {item.published ? 'PUB' : 'HIDDEN'}
+                  </button>
+                </td>
+                <td className="px-3 py-2">
+                  <button
+                    onClick={() => toggleFeature(item, 'funding')}
+                    title={(item.features || []).includes('funding')
+                      ? 'Can set funding goals and receive money — click to revoke'
+                      : 'No access to funding — click to grant for the pilot cohort'}
+                    className="font-mono text-[11px] px-2 py-0.5 border font-bold"
+                    style={{
+                      backgroundColor: (item.features || []).includes('funding') ? '#e4fe52' : '#e5e5e5',
+                      color: '#1a1a1a', borderColor: '#1a1a1a',
+                    }}
+                  >
+                    {(item.features || []).includes('funding') ? 'ON' : 'OFF'}
                   </button>
                 </td>
                 <td className="px-3 py-2">

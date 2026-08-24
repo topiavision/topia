@@ -5,6 +5,7 @@ import {
 } from '@/lib/db';
 import { verifyPrivyIdentity } from '@/lib/auth/privyServer';
 import { resolveWorldPayee } from '@/lib/payments/connect';
+import { hasFeature, FEATURE_FUNDING } from '@/lib/featureAccess';
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
 const BUILDER_ROLES = ['owner', 'world_builder'];
@@ -173,6 +174,16 @@ export async function POST(request: NextRequest) {
 
     const auth = await authorizeTarget(privyId, token, String(targetType ?? ''), String(targetId ?? ''));
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status, headers: NO_STORE });
+
+    /* Gate on the PAYEE rather than the caller. A world builder may set goals,
+     * but the money would reach the world's admin — so it is the admin who
+     * must be in the pilot cohort. */
+    if (!(await hasFeature(auth.ownerUserId, FEATURE_FUNDING))) {
+      return NextResponse.json(
+        { error: 'Funding isn\'t available for this account yet' },
+        { status: 403, headers: NO_STORE },
+      );
+    }
 
     const goal = cleanGoalCents(body.goalCents);
     if ('error' in goal) return NextResponse.json({ error: goal.error }, { status: 400, headers: NO_STORE });

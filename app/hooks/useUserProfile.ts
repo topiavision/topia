@@ -38,6 +38,7 @@ interface CachedProfile {
   privyId: string;
   profile: UserProfile;
   worldMemberships: WorldMembership[];
+  features: string[];
 }
 
 // Every consumer of this hook used to refetch /api/auth/profile from scratch
@@ -84,6 +85,7 @@ function fetchProfile(privyId: string): Promise<CachedProfile | null> {
         privyId,
         profile: data.user,
         worldMemberships: data.worldMemberships ?? [],
+        features: data.features ?? [],
       };
       writeCache(entry);
       return entry;
@@ -99,6 +101,8 @@ export function useUserProfile() {
   const { ready, authenticated, user } = usePrivy();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [worldMemberships, setWorldMemberships] = useState<WorldMembership[]>([]);
+  // Phased-rollout grants for this account, e.g. ['funding'].
+  const [features, setFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Hydrate from the cache one paint after mount (not in the initial state,
@@ -109,6 +113,7 @@ export function useUserProfile() {
     if (cached) {
       setProfile(cached.profile);
       setWorldMemberships(cached.worldMemberships);
+      setFeatures(cached.features ?? []);
     }
   }, []);
 
@@ -117,6 +122,7 @@ export function useUserProfile() {
     if (!authenticated || !user) {
       setProfile(null);
       setWorldMemberships([]);
+      setFeatures([]);
       setLoading(false);
       writeCache(null); // logged out — drop the cache
       return;
@@ -127,6 +133,7 @@ export function useUserProfile() {
       // Cache belongs to a different account — drop it before revalidating.
       setProfile(null);
       setWorldMemberships([]);
+      setFeatures([]);
       writeCache(null);
     }
     setLoading(!cached || cached.privyId !== user.id);
@@ -137,6 +144,7 @@ export function useUserProfile() {
         if (cancelled || !entry) return;
         setProfile(entry.profile);
         setWorldMemberships(entry.worldMemberships);
+        setFeatures(entry.features ?? []);
       })
       .catch(console.error)
       .finally(() => {
@@ -147,5 +155,5 @@ export function useUserProfile() {
     };
   }, [ready, authenticated, user]);
 
-  return { profile, worldMemberships, loading, ready, authenticated };
+  return { profile, worldMemberships, features, loading, ready, authenticated };
 }

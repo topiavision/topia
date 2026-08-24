@@ -6,6 +6,7 @@ import {
   isConnectConfigured, getPayoutAccountByUserId,
   v2AccountCreateParams, v2AccountLinkParams,
 } from '@/lib/payments/connect';
+import { hasFeature, FEATURE_FUNDING } from '@/lib/featureAccess';
 import { authenticate, NO_STORE } from '../auth';
 
 /* POST /api/payouts/connect — { privyId, accessToken? }
@@ -25,6 +26,14 @@ export async function POST(request: NextRequest) {
     );
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status, headers: NO_STORE });
+    }
+
+    // Phased rollout — the pilot cohort only, until funding is generally available.
+    if (!(await hasFeature(auth.userId, FEATURE_FUNDING))) {
+      return NextResponse.json(
+        { error: 'Funding isn\'t available on your account yet' },
+        { status: 403, headers: NO_STORE },
+      );
     }
 
     if (!isConnectConfigured()) {
