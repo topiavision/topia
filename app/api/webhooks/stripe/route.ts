@@ -4,6 +4,9 @@ import { eq } from 'drizzle-orm';
 import { db, ticketOrders } from '@/lib/db';
 import { stripeClient, STRIPE_WEBHOOK_SECRET } from '@/lib/stripe';
 import { fulfillOrder, failOrder, refundOrder } from '@/lib/payments/tickets';
+import {
+  creditContribution, failContribution, applyContributionRefund, disputeContribution,
+} from '@/lib/payments/funding';
 import { applyStripeCustomerDetails } from '@/lib/payments/buyerIdentity';
 
 // Stripe calls this URL on payment lifecycle events. It is the source of truth
@@ -34,7 +37,14 @@ export async function POST(request: NextRequest) {
     event = JSON.parse(body) as Stripe.Event;
   }
 
+  /* Funding contributions ride this same endpoint — we use destination
+   * charges, so their events arrive on the platform account like everything
+   * else. Dispatch on metadata.kind FIRST and return early, leaving the ticket
+   * path below byte-identical to what it was before funding existed. */
   try {
+    const funding = await handleFundingEvent(event);
+    if (funding) return NextResponse.json({ received: true });
+
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -101,5 +111,59 @@ export async function POST(request: NextRequest) {
     console.error('POST webhooks/stripe:', error);
     // 500 → Stripe retries with backoff; handlers are idempotent so that's safe.
     return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
+  }
+}
+
+/* Returns true when the event belonged to a funding contribution and has been
+ * handled. Everything here is idempotent: creditContribution no-ops on a
+ * replay, and refunds diff against the cumulative amount already recorded. */
+async function handleFundingEvent(event: Stripe.Event): Promise<boolean> {
+  const isFunding = (m: Stripe.Metadata | null | undefined) =>
+    m?.kind === 'milestone_contribution' && Boolean(m?.contributionId);
+
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (!isFunding(session.metadata)) return false;
+      if (session.payment_status !== 'paid') return true;
+      await creditContribution(session.metadata!.contributionId, {
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: typeof session.payment_intent === 'string'
+          ? session.payment_intent : session.payment_intent?.id,
+        amountPaidCents: session.amount_total ?? undefined,
+      });
+      return true;
+    }
+
+    case 'checkout.session.expired': {
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (!isFunding(session.metadata)) return false;
+      await failContribution(session.metadata!.contributionId, 'cancelled');
+      return true;
+    }
+
+    case 'charge.refunded': {
+      const charge = event.data.object as Stripe.Charge;
+      if (!isFunding(charge.metadata)) return false;
+      // amount_refunded is CUMULATIVE, so partial refunds and replays are only
+      // distinguishable by the delta — handled inside.
+      await applyContributionRefund(
+        charge.metadata!.contributionId,
+        charge.amount_refunded ?? 0,
+        charge.id,
+      );
+      return true;
+    }
+
+    case 'charge.dispute.created': {
+      const dispute = event.data.object as Stripe.Dispute;
+      const meta = dispute.metadata;
+      if (!isFunding(meta)) return false;
+      await disputeContribution(meta!.contributionId);
+      return true;
+    }
+
+    default:
+      return false;
   }
 }

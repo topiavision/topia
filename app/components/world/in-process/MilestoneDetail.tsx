@@ -3,18 +3,26 @@
 import { eraDateRange } from '@/lib/eraDates';
 import { ORANGE, STATUS_META, orangeMix } from './constants';
 import type { EraMilestoneView } from './types';
+import { useState } from 'react';
 import { FundingMeter } from './funding/FundingMeter';
+import { BackMilestoneModal } from './funding/BackMilestoneModal';
 import { usd } from './funding/format';
 import type { FundingGoalView } from './funding/types';
 /* ── Inline milestone detail — appears under the timeline when a node
  * card is selected; the process log below filters to match. ─────────── */
-export function MilestoneDetail({ m, index, updateCount, canEdit, goal, onEdit, onClose }: {
+export function MilestoneDetail({ m, index, updateCount, canEdit, goal, acceptingSupport, worldTitle, privyId, onEdit, onClose }: {
   m: EraMilestoneView; index: number; updateCount: number; canEdit: boolean;
   /** Funding goal for this milestone. Absent for the many milestones that
    *  need no money — in which case no funding UI renders at all. */
   goal?: FundingGoalView;
+  /** Server-computed: whether this goal can actually take money right now.
+   *  The UI never re-derives the rule. */
+  acceptingSupport?: boolean;
+  worldTitle?: string;
+  privyId?: string | null;
   onEdit: () => void; onClose: () => void;
 }) {
+  const [backing, setBacking] = useState(false);
   const accent = m.status === 'done' || m.status === 'now';
   return (
     <div className="mt-3 rounded-lg border-l-[3px] border border-ink/[0.1] p-4" style={{ borderLeftColor: orangeMix(70) }}>
@@ -63,7 +71,38 @@ export function MilestoneDetail({ m, index, updateCount, canEdit, goal, onEdit, 
           {goal.blurb && (
             <p className="font-mono text-[11.5px] text-ink/60 mt-2.5 leading-relaxed">{goal.blurb}</p>
           )}
+
+          {/* One CTA per milestone, and it lives here — never on the card,
+            * which is already a <button>. A goal whose payee hasn't finished
+            * connecting shows honest copy rather than a button that fails. */}
+          <div className="mt-3.5">
+            {acceptingSupport ? (
+              <button
+                onClick={() => setBacking(true)}
+                className="font-mono text-[11px] uppercase tracking-[2px] font-bold px-5 py-2.5 rounded-sm cursor-pointer border-none"
+                style={{ backgroundColor: 'var(--lime)', color: 'var(--obsidian)' }}
+              >
+                {goal.goalCents != null && goal.raisedCents >= goal.goalCents
+                  ? 'Back it anyway'
+                  : 'Back this milestone'}
+              </button>
+            ) : (
+              <p className="font-mono text-[11px] uppercase tracking-[1px] text-ink/40">
+                Backing opens soon
+              </p>
+            )}
+          </div>
         </div>
+      )}
+
+      {backing && goal && (
+        <BackMilestoneModal
+          goal={goal}
+          milestoneLabel={`M${String(index + 1).padStart(2, '0')} · ${STATUS_META[m.status] ?? m.status.toUpperCase()}`}
+          worldTitle={worldTitle}
+          privyId={privyId}
+          onClose={() => setBacking(false)}
+        />
       )}
 
       <div className="flex items-center gap-4 mt-3 pt-2.5 border-t border-ink/[0.06]">

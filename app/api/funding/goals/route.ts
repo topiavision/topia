@@ -4,7 +4,7 @@ import {
   db, users, worldMembers, worldEras, eraMilestones, worldProjects, lifeChapters, fundingGoals,
 } from '@/lib/db';
 import { verifyPrivyIdentity } from '@/lib/auth/privyServer';
-import { resolveWorldPayee } from '@/lib/payments/connect';
+import { resolveWorldPayee, isConnectConfigured } from '@/lib/payments/connect';
 import { hasFeature, FEATURE_FUNDING } from '@/lib/featureAccess';
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
@@ -148,10 +148,22 @@ export async function GET(request: NextRequest) {
       .from(fundingGoals)
       .where(where);
 
+    /* Whether these goals can actually take money right now, computed here so
+     * the UI renders off one boolean and never re-derives the rule. Requires
+     * Connect configured, the payee granted funding access, and their account
+     * able to receive transfers. */
+    let acceptingSupport = false;
+    if (worldId && isConnectConfigured() && goals.length > 0) {
+      const payee = await resolveWorldPayee(worldId);
+      acceptingSupport = Boolean(
+        payee?.canAccept && (await hasFeature(payee.userId, FEATURE_FUNDING)),
+      );
+    }
+
     // Editors refetch this straight after mutating, so it must never be CDN
     // cached — a created goal vanishing for 60s was a real bug in this feature
     // once already (PR #145).
-    return NextResponse.json({ goals }, { headers: NO_STORE });
+    return NextResponse.json({ goals, acceptingSupport }, { headers: NO_STORE });
   } catch (error) {
     console.error('[funding] GET goals failed:', error);
     return NextResponse.json({ error: 'Could not load goals' }, { status: 500, headers: NO_STORE });

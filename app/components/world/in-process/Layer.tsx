@@ -13,6 +13,7 @@ import { EraForm } from './EraForm';
 import { EraSection } from './EraSection';
 import type { EraView, ProjectOption } from './types';
 import { useFundingGoals } from './funding/useFundingGoals';
+import { FundingReturn } from './funding/FundingReturn';
 /* The IN PROCESS roadmap — Latashá's Turn-2 mockup, minus funding.
  *
  * Structure follows her model: each PROJECT carries its own roadmap (the
@@ -44,7 +45,7 @@ export default function InProcessLayer({
   /* Funding goals for this world, fetched once per mount and keyed by target.
    * A world with no goals gets one empty response and renders exactly as it
    * always has — funding is opt-in per milestone. */
-  const { goals, reload: reloadGoals } = useFundingGoals(worldId);
+  const { goals, acceptingSupport, reload: reloadGoals } = useFundingGoals(worldId);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +118,8 @@ export default function InProcessLayer({
     <div className="bg-[var(--page-bg)] p-4 flex flex-col gap-10">
       <div className="flex flex-col gap-0">
         <Masthead canEdit={canEdit} canMint={canMint} />
+        {/* Backers land here from Stripe — confirm, then refresh the meters. */}
+        <FundingReturn onCredited={() => reloadGoals()} />
         {hasSwitcher && (
           <div id="tour-ip-pills" className="flex flex-wrap items-center gap-1.5 pt-3.5">
             <span className="font-mono text-[9px] uppercase tracking-[2px] text-ink/35 mr-1.5">Roadmaps</span>
@@ -167,6 +170,7 @@ export default function InProcessLayer({
           hideProjectChip={!!projectScope}
           goals={goals}
           canFund={canEdit}
+          acceptingSupport={acceptingSupport}
           accessToken={accessToken}
           onGoalsChanged={reloadGoals}
         />

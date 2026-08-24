@@ -16,7 +16,7 @@ import { RoadmapFundingBar } from './funding/RoadmapFundingBar';
 import { FundingMeter } from './funding/FundingMeter';
 import type { GoalMap } from './funding/types';
 /* ── One era section: header + node timeline + log ─────────────────── */
-export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit, canMint, onChanged, hideProjectChip, tourAnchor, goals, canFund, accessToken, onGoalsChanged }: {
+export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit, canMint, onChanged, hideProjectChip, tourAnchor, goals, canFund, acceptingSupport, worldTitle, accessToken, onGoalsChanged }: {
   era: EraView; worldId: string; worldSlug: string; projects: ProjectOption[]; privyId: string;
   canEdit: boolean; canMint: boolean; onChanged: () => void; hideProjectChip?: boolean;
   /** Funding goals for this world, keyed by the id of what they fund. Empty
@@ -24,6 +24,9 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
   goals?: GoalMap;
   /** Whether this world's admin has funding access (phased rollout). */
   canFund?: boolean;
+  /** Server-computed: this world's payee can actually receive money. */
+  acceptingSupport?: boolean;
+  worldTitle?: string;
   accessToken?: string | null;
   onGoalsChanged?: () => void;
   /** First rendered era carries the walkthrough's spotlight anchors. */
@@ -189,6 +192,9 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
       {selectedMs && (
         <MilestoneDetail
           goal={selectedMs ? goals?.get(selectedMs.id) : undefined}
+          acceptingSupport={acceptingSupport}
+          worldTitle={worldTitle}
+          privyId={privyId}
           m={selectedMs}
           index={selectedIndex}
           updateCount={selectedUpdateCount}
