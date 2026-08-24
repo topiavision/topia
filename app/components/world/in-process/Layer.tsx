@@ -12,6 +12,7 @@ import { HowThisWorks } from './HowThisWorks';
 import { EraForm } from './EraForm';
 import { EraSection } from './EraSection';
 import type { EraView, ProjectOption } from './types';
+import { useFundingGoals } from './funding/useFundingGoals';
 /* The IN PROCESS roadmap — Latashá's Turn-2 mockup, minus funding.
  *
  * Structure follows her model: each PROJECT carries its own roadmap (the
@@ -39,7 +40,18 @@ export default function InProcessLayer({
    * no project chips, and new roadmaps are created pre-linked. */
   projectScope?: string;
 }) {
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
+  /* Funding goals for this world, fetched once per mount and keyed by target.
+   * A world with no goals gets one empty response and renders exactly as it
+   * always has — funding is opt-in per milestone. */
+  const { goals, reload: reloadGoals } = useFundingGoals(worldId);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    // Needed only to authorise goal writes; harmless when absent.
+    getAccessToken().then((t) => { if (!cancelled) setAccessToken(t); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [getAccessToken]);
   const privyId = user?.id ?? '';
   const [creating, setCreating] = useState(false);
   const [canMint, setCanMint] = useState(false);
@@ -153,6 +165,10 @@ export default function InProcessLayer({
           canMint={canMint}
           onChanged={onChanged}
           hideProjectChip={!!projectScope}
+          goals={goals}
+          canFund={canEdit}
+          accessToken={accessToken}
+          onGoalsChanged={reloadGoals}
         />
       ))}
       {canEdit && !creating && visible.length > 0 && !projectScope && (

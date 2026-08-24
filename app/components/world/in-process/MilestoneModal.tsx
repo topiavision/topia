@@ -4,12 +4,35 @@ import { useState } from 'react';
 import { EraDateField, ImageField, inputCls, labelCls, btnLime, btnGhost, MILESTONE_STATUSES, type Precision } from '../InProcessFields';
 import { ORANGE } from './constants';
 import type { EraMilestoneView } from './types';
+import { GoalFieldset } from './funding/GoalFieldset';
+import type { FundingGoalView } from './funding/types';
 /* ── Milestone add/edit modal (builders only) ──────────────────────
  * Reading a milestone happens inline on the timeline — selecting a
  * card opens its detail panel and filters the log. This modal is
  * purely the form. */
-export function MilestoneModal({ eraId, existing, nextIndex, privyId, onClose, onChanged }: {
+/* Dollars as typed → integer cents, or null for "no goal". Mirrors the
+ * server's cleanGoalCents so the creator sees the problem before the round
+ * trip; the route validates again regardless. */
+function parseGoalDollars(raw: string): { cents: number | null; error?: string } {
+  const trimmed = raw.replace(/[$,\s]/g, '');
+  if (trimmed === '') return { cents: null };
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return { cents: null, error: 'Enter a valid amount' };
+  const cents = Math.round(n * 100);
+  if (cents === 0) return { cents: null };
+  if (cents < 100) return { cents: null, error: 'A goal has to be at least $1' };
+  if (cents > 100_000_000) return { cents: null, error: 'Goals top out at $1,000,000' };
+  return { cents };
+}
+
+export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canFund, accessToken, onClose, onChanged }: {
   eraId: string; existing?: EraMilestoneView; nextIndex?: number; privyId: string;
+  /** Existing funding goal for this milestone, if any. */
+  goal?: FundingGoalView;
+  /** Whether this world's admin has funding access at all. When false the
+   *  fieldset is hidden entirely rather than shown and refused. */
+  canFund?: boolean;
+  accessToken?: string | null;
   onClose: () => void; onChanged: () => void;
 }) {
   const [draft, setDraft] = useState({
@@ -25,6 +48,13 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, onClose, o
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState('');
+  // Funding is optional: these start empty and an untouched fieldset saves a
+  // perfectly normal, unfunded milestone.
+  const [goalDollars, setGoalDollars] = useState(
+    goal?.goalCents != null ? String(goal.goalCents / 100) : '',
+  );
+  const [blurb, setBlurb] = useState(goal?.blurb ?? '');
+  const [goalError, setGoalError] = useState<string | null>(null);
 
   const save = async () => {
     if (!draft.title.trim()) return;
@@ -38,6 +68,42 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, onClose, o
           : { privyId, eraId, ...draft, sortOrder: nextIndex ?? 0 }),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error || 'Could not save.'); return; }
+
+      /* Persist the goal against the saved milestone. Only when the creator
+       * actually engaged with funding — an untouched fieldset must not create
+       * an empty goal row, and must not fail the milestone save either. */
+      const touchedFunding = goalDollars.trim() !== '' || blurb.trim() !== '' || Boolean(goal);
+      if (canFund && touchedFunding) {
+        const saved = await res.json().catch(() => ({}));
+        const milestoneId = existing?.id ?? saved?.milestone?.id;
+        const parsed = parseGoalDollars(goalDollars);
+        if (parsed.error) { setGoalError(parsed.error); return; }
+        if (milestoneId) {
+          const gRes = await fetch('/api/funding/goals', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+            },
+            body: JSON.stringify({
+              privyId,
+              targetType: 'milestone',
+              targetId: milestoneId,
+              goalCents: parsed.cents,
+              blurb: blurb.trim() || null,
+            }),
+          });
+          if (!gRes.ok) {
+            const d = await gRes.json().catch(() => ({}));
+            // The milestone itself saved; surface the funding problem without
+            // pretending the whole edit failed.
+            setGoalError(d.error || 'Milestone saved, but the funding goal could not be.');
+            onChanged();
+            return;
+          }
+        }
+      }
+
       onChanged();
       onClose();
     } finally { setSaving(false); }
@@ -81,6 +147,17 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, onClose, o
             </select>
           </div>
           <ImageField value={draft.imageUrl} onChange={(url) => setDraft({ ...draft, imageUrl: url })} />
+
+          {canFund && (
+            <GoalFieldset
+              existing={goal}
+              goalDollars={goalDollars}
+              onGoalDollarsChange={(v) => { setGoalDollars(v); setGoalError(null); }}
+              blurb={blurb}
+              onBlurbChange={setBlurb}
+              error={goalError}
+            />
+          )}
           {error && <p className="font-mono text-[11px]" style={{ color: ORANGE }}>{error}</p>}
           <div className="flex items-center gap-3 flex-wrap pt-1">
             <button onClick={save} disabled={saving || !draft.title.trim()} className={btnLime}>

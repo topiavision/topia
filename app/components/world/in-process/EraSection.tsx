@@ -12,10 +12,20 @@ import { MilestoneDetail } from './MilestoneDetail';
 import { ProcessLog } from './ProcessLog';
 import { PostComposer } from './PostComposer';
 import type { EraMilestoneView, EraView, ProjectOption } from './types';
+import { RoadmapFundingBar } from './funding/RoadmapFundingBar';
+import { FundingMeter } from './funding/FundingMeter';
+import type { GoalMap } from './funding/types';
 /* ── One era section: header + node timeline + log ─────────────────── */
-export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit, canMint, onChanged, hideProjectChip, tourAnchor }: {
+export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit, canMint, onChanged, hideProjectChip, tourAnchor, goals, canFund, accessToken, onGoalsChanged }: {
   era: EraView; worldId: string; worldSlug: string; projects: ProjectOption[]; privyId: string;
   canEdit: boolean; canMint: boolean; onChanged: () => void; hideProjectChip?: boolean;
+  /** Funding goals for this world, keyed by the id of what they fund. Empty
+   *  for the common case of a roadmap with no funding at all. */
+  goals?: GoalMap;
+  /** Whether this world's admin has funding access (phased rollout). */
+  canFund?: boolean;
+  accessToken?: string | null;
+  onGoalsChanged?: () => void;
   /** First rendered era carries the walkthrough's spotlight anchors. */
   tourAnchor?: boolean;
 }) {
@@ -91,6 +101,14 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
       )}
 
       {/* Node timeline — the mockup's connected dots + cards */}
+      {goals && goals.size > 0 && (
+        <RoadmapFundingBar
+          milestones={era.milestones}
+          goals={goals}
+          projectGoalId={era.projectId ?? null}
+        />
+      )}
+
       <div id={tourAnchor ? 'tour-ip-timeline' : undefined} className="overflow-x-auto mt-5 pb-1" style={{ scrollbarWidth: 'thin' }}>
         <div className="flex min-w-max">
           {era.milestones.map((m, i) => {
@@ -129,6 +147,20 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
                     <img src={m.imageUrl} alt="" className="w-full h-[96px] object-cover rounded-sm mt-2" loading="lazy" />
                   )}
                   {m.description && <p className="font-mono text-[11px] text-ink/50 mt-2 line-clamp-3">{m.description}</p>}
+                  {/* Funding is per-milestone and optional — a milestone with
+                    * no goal renders exactly as it always has. */}
+                  {(() => {
+                    const g = goals?.get(m.id);
+                    if (!g || (g.goalCents == null && g.raisedCents === 0)) return null;
+                    return (
+                      <FundingMeter
+                        raisedCents={g.raisedCents}
+                        goalCents={g.goalCents}
+                        size="sm"
+                        className="mt-2.5"
+                      />
+                    );
+                  })()}
                 </button>
               </div>
             );
@@ -156,6 +188,7 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
 
       {selectedMs && (
         <MilestoneDetail
+          goal={selectedMs ? goals?.get(selectedMs.id) : undefined}
           m={selectedMs}
           index={selectedIndex}
           updateCount={selectedUpdateCount}
@@ -194,12 +227,15 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
 
       {milestoneModal && (
         <MilestoneModal
+          goal={milestoneModal.existing ? goals?.get(milestoneModal.existing.id) : undefined}
+          canFund={canFund}
+          accessToken={accessToken}
           eraId={era.id}
           existing={milestoneModal.existing}
           nextIndex={era.milestones.length}
           privyId={privyId}
           onClose={() => setMilestoneModal(null)}
-          onChanged={onChanged}
+          onChanged={() => { onChanged(); onGoalsChanged?.(); }}
         />
       )}
     </div>

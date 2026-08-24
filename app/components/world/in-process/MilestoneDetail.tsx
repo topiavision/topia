@@ -3,10 +3,16 @@
 import { eraDateRange } from '@/lib/eraDates';
 import { ORANGE, STATUS_META, orangeMix } from './constants';
 import type { EraMilestoneView } from './types';
+import { FundingMeter } from './funding/FundingMeter';
+import { usd } from './funding/format';
+import type { FundingGoalView } from './funding/types';
 /* ── Inline milestone detail — appears under the timeline when a node
  * card is selected; the process log below filters to match. ─────────── */
-export function MilestoneDetail({ m, index, updateCount, canEdit, onEdit, onClose }: {
+export function MilestoneDetail({ m, index, updateCount, canEdit, goal, onEdit, onClose }: {
   m: EraMilestoneView; index: number; updateCount: number; canEdit: boolean;
+  /** Funding goal for this milestone. Absent for the many milestones that
+   *  need no money — in which case no funding UI renders at all. */
+  goal?: FundingGoalView;
   onEdit: () => void; onClose: () => void;
 }) {
   const accent = m.status === 'done' || m.status === 'now';
@@ -31,6 +37,35 @@ export function MilestoneDetail({ m, index, updateCount, canEdit, onEdit, onClos
         )}
         {m.description && <p className="font-mono text-[12.5px] text-ink/70 leading-relaxed flex-1 min-w-[200px]">{m.description}</p>}
       </div>
+      {goal && (goal.goalCents != null || goal.raisedCents > 0) && (
+        <div
+          className="mt-3.5 rounded-lg px-4 py-3.5"
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--lime) 16%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--accent-ink) 28%, transparent)',
+          }}
+        >
+          <p>
+            <span className="font-mono text-[20px] font-bold tabular-nums" style={{ color: 'var(--accent-ink)' }}>
+              {usd(goal.raisedCents)}
+            </span>
+            {goal.goalCents != null && (
+              <span className="font-mono text-[13px] text-ink/45"> of {usd(goal.goalCents)} goal</span>
+            )}
+          </p>
+          <FundingMeter
+            raisedCents={goal.raisedCents}
+            goalCents={goal.goalCents}
+            patronCount={goal.patronCount}
+            size="lg"
+            className="mt-2.5"
+          />
+          {goal.blurb && (
+            <p className="font-mono text-[11.5px] text-ink/60 mt-2.5 leading-relaxed">{goal.blurb}</p>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-4 mt-3 pt-2.5 border-t border-ink/[0.06]">
         <span className="font-mono text-[10px] uppercase tracking-[1px] text-ink/45">
           {updateCount > 0 ? <>↓ {updateCount} update{updateCount === 1 ? '' : 's'} in the log below</> : 'No updates logged for this yet'}
