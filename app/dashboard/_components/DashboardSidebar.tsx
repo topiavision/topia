@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useDashboard } from './DashboardContext';
 import { useSidebar } from './SidebarContext';
+import { FUNDING_ENABLED } from '@/lib/featureFlags';
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
@@ -57,6 +58,11 @@ export default function DashboardSidebar() {
   const personalItems = [
     { label: 'Overview', href: '/dashboard' },
     { label: 'Events', href: '/dashboard/events' },
+    // Personal, not per-world: one Stripe account covers every world you admin
+    // and every event you host. Hidden until funding ships, matching how
+    // PAYMENTS_ENABLED gates the ticketing UI — the page itself still renders
+    // its own "not switched on" state for anyone who has the URL.
+    ...(FUNDING_ENABLED ? [{ label: 'Payouts', href: '/dashboard/payouts' }] : []),
   ];
 
   /* ── Context switcher ─────────────────────────────────── */
