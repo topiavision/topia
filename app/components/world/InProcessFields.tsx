@@ -1,5 +1,7 @@
 'use client';
 
+import { ORANGE } from './in-process/constants';
+
 import { useState } from 'react';
 import { resizeAndUploadImage } from '../../../lib/uploadImage';
 
@@ -118,13 +120,13 @@ export function ImageField({ value, onChange, label = 'Image (optional)' }: {
           <span className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={value} alt="" className="h-12 w-12 object-cover rounded-sm border border-ink/10" />
-            <button onClick={() => onChange('')} aria-label="Remove image" className="font-mono text-[10px] uppercase underline cursor-pointer bg-transparent border-none" style={{ color: '#FF5C34' }}>
+            <button onClick={() => onChange('')} aria-label="Remove image" className="font-mono text-[10px] uppercase underline cursor-pointer bg-transparent border-none" style={{ color: ORANGE }}>
               Remove
             </button>
           </span>
         )}
       </div>
-      {error && <p className="font-mono text-[11px] mt-1" style={{ color: '#FF5C34' }}>{error}</p>}
+      {error && <p className="font-mono text-[11px] mt-1" style={{ color: ORANGE }}>{error}</p>}
     </div>
   );
 }

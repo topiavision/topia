@@ -12,6 +12,11 @@ export type CreateOrderInput = {
   ticketTypeId: string;
   quantity: number;
   rail: Rail;
+  // Buyer identity for the sales record. Collected on the checkout screen so
+  // the host's guest list has a real name and a reachable email even when the
+  // buyer signed in with SMS only and has an otherwise empty profile.
+  buyerFirstName?: string;
+  buyerLastName?: string;
   buyerEmail?: string;
   promoCode?: string;
 };
@@ -37,6 +42,20 @@ export async function createPendingOrder(input: CreateOrderInput): Promise<Creat
     .from(users)
     .where(eq(users.privyId, input.privyId));
   if (!buyer) return { ok: false, status: 404, error: 'User not found' };
+
+  // Buyer identity is required for a paid admission — the host needs a name at
+  // the door and an address to send the ticket to. The checkout screen enforces
+  // this too; repeating it here so a direct API call can't create a nameless
+  // order. Falls back to the profile email when the form didn't send one.
+  const buyerFirstName = input.buyerFirstName?.trim() || '';
+  const buyerLastName = input.buyerLastName?.trim() || '';
+  const buyerEmail = (input.buyerEmail?.trim() || buyer.email || '').trim();
+  if (!buyerFirstName || !buyerLastName) {
+    return { ok: false, status: 400, error: 'First and last name are required' };
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyerEmail)) {
+    return { ok: false, status: 400, error: 'A valid email is required' };
+  }
 
   const [tier] = await db
     .select()
@@ -106,7 +125,9 @@ export async function createPendingOrder(input: CreateOrderInput): Promise<Creat
       currency: tier.currency,
       rail: input.rail,
       status: 'pending',
-      buyerEmail: input.buyerEmail ?? buyer.email ?? null,
+      buyerFirstName,
+      buyerLastName,
+      buyerEmail,
       promoCodeId,
       promoCode,
       discountCents,

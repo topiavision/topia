@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import {
   users, worldMembers, worlds, creators, events, tools, eventInvites,
   tvContent, eventGalleryPhotos, tvEpisodes, shortLinks, ticketOrders, tickets,
+  userFeatureFlags,
 } from '@/lib/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { isAdminRequest } from '@/lib/adminAuth';
@@ -29,6 +30,15 @@ export async function GET(request: Request) {
       .from(worldMembers)
       .innerJoin(worlds, eq(worldMembers.worldId, worlds.id));
 
+    // Feature grants (phased rollout), so the Users tab can show and toggle
+    // who has funding ahead of general availability.
+    const grants = await db
+      .select({ userId: userFeatureFlags.userId, feature: userFeatureFlags.feature })
+      .from(userFeatureFlags)
+      .where(eq(userFeatureFlags.enabled, true));
+    const featureMap: Record<string, string[]> = {};
+    for (const g of grants) (featureMap[g.userId] ??= []).push(g.feature);
+
     // Group memberships by userId
     const membershipMap: Record<string, { worldId: string; role: string; worldTitle: string; worldSlug: string }[]> = {};
     for (const m of memberships) {
@@ -45,6 +55,7 @@ export async function GET(request: Request) {
       ...u,
       feedbackRef: feedbackRef(u.id), // opaque ref shown on feedback issues
       worldMemberships: membershipMap[u.id] || [],
+      features: featureMap[u.id] || [],
     }));
 
     return NextResponse.json({ users: result });

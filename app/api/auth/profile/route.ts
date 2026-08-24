@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { users, worldMembers, worlds } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { featuresForUser } from '@/lib/featureAccess';
 
 export async function GET(request: NextRequest) {
   try {
@@ -65,7 +66,11 @@ export async function GET(request: NextRequest) {
       .innerJoin(worlds, eq(worldMembers.worldId, worlds.id))
       .where(eq(worldMembers.userId, user.id));
 
-    return NextResponse.json({ user, worldMemberships: memberships });
+    // Phased-rollout grants, so client surfaces can hide what this person
+    // can't use yet. Rendering only — every route re-checks server-side.
+    const features = await featuresForUser(user.id);
+
+    return NextResponse.json({ user, worldMemberships: memberships, features });
   } catch (error) {
     console.error('Profile fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

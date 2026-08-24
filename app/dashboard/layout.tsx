@@ -16,7 +16,7 @@ import { SidebarProvider, useSidebar } from './_components/SidebarContext';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
   const router = useRouter();
-  const { profile, worldMemberships, loading } = useUserProfile();
+  const { profile, worldMemberships, features, loading } = useUserProfile();
   const [hostedEvents, setHostedEvents] = useState<HostedEvent[]>([]);
 
   // Redirect if not authenticated
@@ -53,7 +53,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <DashboardContext.Provider value={{ profile, worldMemberships, hostedEvents, refreshEvents: () => setEventsRefresh((n) => n + 1) }}>
+    <DashboardContext.Provider value={{ profile, worldMemberships, features, hostedEvents, refreshEvents: () => setEventsRefresh((n) => n + 1) }}>
       <DashboardOverviewProvider>
         <SidebarProvider>
           <DashboardShell>{children}</DashboardShell>

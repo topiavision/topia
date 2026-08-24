@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, users, eventRsvps } from '@/lib/db';
-import { eq, and, count } from 'drizzle-orm';
+import { db, users, eventRsvps, ticketOrders, eventTicketTypes } from '@/lib/db';
+import { eq, and, count, desc, inArray } from 'drizzle-orm';
 import { requireManager } from '@/lib/events/auth';
 import { promoteFromWaitlist } from '@/lib/events/waitlist';
 
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     let rsvps: unknown[] = [];
     if (isManager) {
-      rsvps = await db
+      const rows = await db
         .select({
           userId: eventRsvps.userId,
           name: users.name,
@@ -60,6 +60,72 @@ export async function GET(request: NextRequest) {
         .from(eventRsvps)
         .leftJoin(users, eq(eventRsvps.userId, users.id))
         .where(eq(eventRsvps.eventId, eventId));
+
+      // Ticket buyers never fill in the RSVP form — fulfillOrder puts them
+      // straight on the list — so their name and email live on the order, not
+      // the profile. Overlay the paid order (newest per buyer) so the host sees
+      // who they actually are and what they bought, instead of whatever Privy
+      // happened to capture at login.
+      const buyerIds = rows.map((r) => r.userId);
+      const orders = buyerIds.length
+        ? await db
+            .select({
+              buyerId: ticketOrders.buyerId,
+              orderId: ticketOrders.id,
+              firstName: ticketOrders.buyerFirstName,
+              lastName: ticketOrders.buyerLastName,
+              buyerEmail: ticketOrders.buyerEmail,
+              quantity: ticketOrders.quantity,
+              amountCents: ticketOrders.amountCents,
+              promoCode: ticketOrders.promoCode,
+              tierName: eventTicketTypes.name,
+              purchasedAt: ticketOrders.createdAt,
+            })
+            .from(ticketOrders)
+            .leftJoin(eventTicketTypes, eq(ticketOrders.ticketTypeId, eventTicketTypes.id))
+            .where(and(
+              eq(ticketOrders.eventId, eventId),
+              eq(ticketOrders.status, 'paid'),
+              inArray(ticketOrders.buyerId, buyerIds),
+            ))
+            .orderBy(desc(ticketOrders.createdAt))
+        : [];
+
+      // A buyer can hold several orders; keep the newest for the name/email
+      // overlay but total the tickets and spend across all of them.
+      const orderByBuyer = new Map<string, typeof orders[number]>();
+      const totals = new Map<string, { tickets: number; spentCents: number }>();
+      for (const o of orders) {
+        if (!orderByBuyer.has(o.buyerId)) orderByBuyer.set(o.buyerId, o);
+        const t = totals.get(o.buyerId) ?? { tickets: 0, spentCents: 0 };
+        t.tickets += o.quantity;
+        t.spentCents += o.amountCents;
+        totals.set(o.buyerId, t);
+      }
+
+      rsvps = rows.map((r) => {
+        const o = orderByBuyer.get(r.userId);
+        const t = totals.get(r.userId);
+        const fullName = o ? [o.firstName, o.lastName].filter(Boolean).join(' ') : '';
+        return {
+          ...r,
+          // Order fields win for display only where the profile is blank —
+          // a host who set a name on the profile still sees that name.
+          name: r.name?.trim() || fullName || null,
+          email: r.email?.trim() || o?.buyerEmail || null,
+          firstName: o?.firstName ?? null,
+          lastName: o?.lastName ?? null,
+          ticket: o
+            ? {
+                tierName: o.tierName,
+                tickets: t?.tickets ?? o.quantity,
+                spentCents: t?.spentCents ?? o.amountCents,
+                promoCode: o.promoCode,
+                purchasedAt: o.purchasedAt,
+              }
+            : null,
+        };
+      });
     }
 
     return NextResponse.json({

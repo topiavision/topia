@@ -17,6 +17,9 @@ interface HostedEvent {
 interface DashboardContextValue {
   profile: UserProfile | null;
   worldMemberships: WorldMembership[];
+  /** Phased-rollout grants for this account, e.g. ['funding']. Rendering only
+   *  — every route re-checks server-side. */
+  features: string[];
   hostedEvents: HostedEvent[];
   refreshEvents: () => void;
 }
@@ -24,6 +27,7 @@ interface DashboardContextValue {
 export const DashboardContext = createContext<DashboardContextValue>({
   profile: null,
   worldMemberships: [],
+  features: [],
   hostedEvents: [],
   refreshEvents: () => {},
 });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, events, users, eventHosts, eventRsvps, worlds } from '@/lib/db';
+import { db, events, users, eventHosts, eventRsvps, worlds, worldMembers } from '@/lib/db';
 import { eq, asc, and, isNotNull, count, sql, inArray } from 'drizzle-orm';
 import { ensureShortLink } from '@/lib/shortlinkStore';
 
@@ -10,6 +10,33 @@ const LIST_CACHE = 'public, s-maxage=60, stale-while-revalidate=300';
 // Title-case normalize: "los angeles" → "Los Angeles"
 function titleCase(str: string): string {
   return str.trim().split(/\s+/).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+/* Resolve a caller-supplied worldId into a value safe to store on an
+ * event_hosts row.
+ *
+ * "Host as world" is not merely a label. Creator payouts route a world-hosted
+ * event's ticket revenue to that world's admin, so accepting an arbitrary
+ * worldId would let one user direct another user's money — or saddle a
+ * stranger's world admin with revenue, disputes and tax paperwork for an event
+ * they have never heard of. Membership is therefore checked on every write.
+ *
+ * Any membership role is accepted (owner / world_builder / collaborator),
+ * matching the composer's own dropdown, which offers every world the user
+ * belongs to. */
+async function resolveHostWorldId(
+  userId: string,
+  raw: unknown,
+): Promise<{ worldId: string | null } | { error: string }> {
+  if (!raw) return { worldId: null };
+  if (typeof raw !== 'string') return { error: 'Invalid world' };
+  const [membership] = await db
+    .select({ id: worldMembers.id })
+    .from(worldMembers)
+    .where(and(eq(worldMembers.worldId, raw), eq(worldMembers.userId, userId)))
+    .limit(1);
+  if (!membership) return { error: 'You are not a member of that world' };
+  return { worldId: raw };
 }
 
 // Fetch hosts for a list of event IDs
@@ -321,6 +348,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Catalysts cannot create events' }, { status: 403 });
     }
 
+    // Validate host-as-world BEFORE inserting the event, so a rejected world
+    // never leaves a stranded event row behind.
+    const hostWorld = await resolveHostWorldId(user.id, data.worldId);
+    if ('error' in hostWorld) {
+      return NextResponse.json({ error: hostWorld.error }, { status: 403 });
+    }
+
     const city = data.city ? titleCase(data.city) : null;
 
     // Deduplicate slug: if the base slug is taken, try appending -2, -3, … up to -9.
@@ -370,7 +404,7 @@ export async function POST(request: NextRequest) {
         eventId: result[0].id,
         userId: user.id,
         role: 'creator',
-        worldId: data.worldId || null,
+        worldId: hostWorld.worldId,
       });
     }
 
@@ -412,8 +446,12 @@ export async function PUT(request: NextRequest) {
     // Host-as-world — only the main host (creator) controls which world the
     // event is presented by. Co-hosts editing other fields don't change it.
     if (data.worldId !== undefined && host.role === 'creator') {
+      const hostWorld = await resolveHostWorldId(user.id, data.worldId);
+      if ('error' in hostWorld) {
+        return NextResponse.json({ error: hostWorld.error }, { status: 403 });
+      }
       await db.update(eventHosts)
-        .set({ worldId: data.worldId || null })
+        .set({ worldId: hostWorld.worldId })
         .where(eq(eventHosts.id, host.id));
     }
 

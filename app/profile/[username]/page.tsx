@@ -22,6 +22,7 @@ import EventsLayer from '../../components/profile/EventsLayer';
 import WorldsLayer from '../../components/profile/WorldsLayer';
 import GuestbookLayer from '../../components/profile/GuestbookLayer';
 import ProfileInProcessLayer, { type LifeChapterView, type WorldEraEntry } from '../../components/profile/InProcessLayer';
+import { SupportSummary } from '../../components/profile/SupportSummary';
 import ToolkitLayer from '../../components/profile/ToolkitLayer';
 import Tour, { type TourStep } from '../../components/Tour';
 
@@ -283,7 +284,14 @@ export default function PublicProfilePage() {
       case 'events':    return <EventsLayer config={config} hosted={hostedEvents} attended={attendedEvents} />;
       case 'worlds':    return <WorldsLayer config={config} isWorldBuilder={path === 'worldbuilder'} worlds={sortedWorlds} isOwnProfile={isOwnProfile} ownerName={profile?.username ? `@${profile.username}` : (profile?.name || '')} />;
       case 'toolkit':   return <ToolkitLayer config={config} tools={tools} username={profile?.username ?? username} />;
-      case 'inprocess': return <ProfileInProcessLayer chapters={lifeChapters} worldEras={profileEras} isOwnProfile={isOwnProfile} onChanged={loadInProcess} />;
+      case 'inprocess': return (
+        <>
+          <ProfileInProcessLayer chapters={lifeChapters} worldEras={profileEras} isOwnProfile={isOwnProfile} onChanged={loadInProcess} />
+          {/* Cumulative across every goal this person owns — projects and life
+            * alike. Renders nothing when they have none. */}
+          {profile && <SupportSummary ownerUserId={profile.id} displayName={profile.name || profile.username} />}
+        </>
+      );
       case 'guestbook': return <GuestbookLayer config={config} profileUsername={username} />;
       default:          return <IdentityLayer config={config} sectionLabel={sectionLabel} items={endorsedItems} stamps={stamps} showEndorsed={false} editable={isOwnProfile} storageKey={username} ownerName={profile?.username ? `@${profile.username}` : (profile?.name || '')} />;
     }

@@ -825,6 +825,15 @@ export const ticketOrders = pgTable('ticket_orders', {
   currency: text('currency').notNull().default('USD'),
   rail: text('rail').notNull(),                          // 'stripe' (legacy rows: 'square' | 'crypto')
   status: text('status').notNull().default('pending'),   // 'pending'|'paid'|'failed'|'refunded'|'cancelled'
+  // ── Buyer identity (sales record, NOT the passport profile) ──
+  // Captured on the Topia checkout screen before the Stripe redirect, so a
+  // buyer who logged in with SMS-only still has a name and a reachable email
+  // on the order. Deliberately separate from users.name/users.email: a ticket
+  // is a transaction, and the host's door list must not depend on how complete
+  // someone's profile happens to be. The webhook back-fills any of these left
+  // blank from Stripe's own customer_details.
+  buyerFirstName: text('buyer_first_name'),
+  buyerLastName: text('buyer_last_name'),
   buyerEmail: text('buyer_email'),
   // ── Promo code (snapshot at purchase; amountCents is already discounted) ──
   promoCodeId: uuid('promo_code_id').references(() => eventPromoCodes.id),
@@ -955,4 +964,173 @@ export const messages = pgTable('messages', {
 }, (t) => [
   // Thread load (polled every few seconds): a conversation's messages in order.
   index('messages_conversation_id_created_at_idx').on(t.conversationId, t.createdAt),
+]);
+
+/* ── Creator payouts (Stripe Connect Express) ──────────────────────────
+ * One connected account per PERSON, not per world or per event: a Stripe
+ * Express account is a KYC'd legal entity with a bank account and a tax ID,
+ * so a creator onboards once and every world they admin and every event they
+ * host pays out through it.
+ *
+ * Who gets paid is resolved at earning time (see resolvePayee in
+ * lib/payments/connect.ts), never stored here: anything a world owns pays
+ * that world's admin; a personal event pays its creator-host; a life goal
+ * pays the user themselves.
+ *
+ * The Stripe account is the durable record — these columns are a cache of its
+ * status, refreshed by the account.updated webhook and by a live retrieve on
+ * the dashboard read. */
+export const creatorPayoutAccounts = pgTable('creator_payout_accounts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull().unique(),
+  stripeAccountId: text('stripe_account_id').notNull().unique(),   // acct_…
+  country: text('country').notNull().default('US'),
+  currency: text('currency').notNull().default('USD'),
+  // Mirrors of the Stripe Account object. chargesEnabled + transfersActive
+  // together gate selling; payoutsEnabled only drives a "finish verification
+  // to get paid" banner — money can accrue in the connected balance while
+  // verification finishes, and blocking on it would strand creators.
+  chargesEnabled: boolean('charges_enabled').notNull().default(false),
+  payoutsEnabled: boolean('payouts_enabled').notNull().default(false),
+  transfersActive: boolean('transfers_active').notNull().default(false),
+  detailsSubmitted: boolean('details_submitted').notNull().default(false),
+  // 'pending' | 'restricted' | 'active' | 'disabled' | 'deauthorized'
+  onboardingStatus: text('onboarding_status').notNull().default('pending'),
+  requirementsDue: jsonb('requirements_due'),   // requirements.currently_due snapshot
+  disabledReason: text('disabled_reason'),      // requirements.disabled_reason
+  lastSyncedAt: timestamp('last_synced_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('creator_payout_accounts_stripe_account_id_idx').on(t.stripeAccountId),
+]);
+
+/* ── Funding goals ─────────────────────────────────────────────────────
+ * One table for every fundable thing, rather than a goal_cents column on
+ * each. Goals attach to a MILESTONE, a whole PROJECT, or a LIFE CHAPTER
+ * (housing, a studio move — things with no project at all), and the meeting
+ * that scoped this asked for all three plus a cumulative per-creator view.
+ *
+ * Polymorphic on purpose: the project bar and the milestone bars become the
+ * same component reading the same table, the consolidated profile view is one
+ * query instead of a union across three schemas, and there is one checkout
+ * route and one ledger regardless of what is being funded.
+ *
+ * Cost of that choice: target_id cannot carry a real FK, so orphan cleanup is
+ * app-side and titleSnapshot exists so a receipt stays readable after the
+ * target is deleted. Worth it at three target types and rising. */
+export const fundingGoals = pgTable('funding_goals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  // 'milestone' | 'project' | 'life_chapter'
+  targetType: text('target_type').notNull(),
+  targetId: uuid('target_id').notNull(),
+  /* The payee at the time the goal was created. A CONVENIENCE for the
+   * cumulative profile view — the authoritative payee is resolved fresh at
+   * contribution time (resolvePayee) and snapshotted onto the contribution,
+   * because world ownership can transfer. */
+  ownerUserId: uuid('owner_user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  // Null for life goals, which belong to a person rather than a world.
+  worldId: uuid('world_id').references(() => worlds.id, { onDelete: 'cascade' }),
+  titleSnapshot: text('title_snapshot'),
+  // Null = open-ended support with no target. Distinct from 0.
+  goalCents: integer('goal_cents'),
+  // Caches derived from paid contributions; the ledger is authoritative.
+  // Only ever mutated by SQL expression inside the crediting transaction.
+  raisedCents: integer('raised_cents').notNull().default(0),
+  patronCount: integer('patron_count').notNull().default(0),
+  blurb: text('blurb'),                                  // "what support pays for"
+  status: text('status').notNull().default('open'),      // 'open' | 'closed'
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  // One goal per thing.
+  uniqueIndex('funding_goals_target_uniq').on(t.targetType, t.targetId),
+  // The cumulative profile view: every goal a creator owns.
+  index('funding_goals_owner_user_id_idx').on(t.ownerUserId),
+  index('funding_goals_world_id_idx').on(t.worldId),
+]);
+
+/* ── Contributions ─────────────────────────────────────────────────────
+ * The money ledger, and the authoritative record of what a goal raised.
+ * funding_goals.raised_cents is a cache derived from the paid rows here.
+ *
+ * Parent FKs are SET NULL rather than CASCADE: worlds hard-delete in this
+ * codebase and cascade through projects, eras and milestones, and a financial
+ * record must outlive the thing it funded. The snapshot columns keep a receipt
+ * readable after the parent is gone. */
+export const contributions = pgTable('contributions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  fundingGoalId: uuid('funding_goal_id').references(() => fundingGoals.id, { onDelete: 'set null' }),
+  // Snapshots — survive deletion of the goal and its target.
+  targetType: text('target_type'),
+  targetId: uuid('target_id'),
+  worldId: uuid('world_id').references(() => worlds.id, { onDelete: 'set null' }),
+  goalTitleSnapshot: text('goal_title_snapshot'),
+  /* WHO earned this, resolved at charge time and never re-derived. The inputs
+   * are mutable (a host can change "Host as world" from a dropdown; world
+   * ownership can transfer), so without this snapshot, editing a dropdown
+   * would retroactively change who owns money that already moved. */
+  payoutUserId: uuid('payout_user_id').references(() => users.id, { onDelete: 'set null' }),
+  payoutAccountId: text('payout_account_id'),            // acct_… at charge time
+  // Backer. Nullable user id — supporting does not require an account.
+  // backerEmail is a RECEIPT DESTINATION ONLY and never resolves or patches a
+  // users row, or guest checkout would become a profile-write primitive.
+  backerId: uuid('backer_id').references(() => users.id, { onDelete: 'set null' }),
+  backerName: text('backer_name'),
+  backerEmail: text('backer_email'),
+  anonymous: boolean('anonymous').notNull().default(false),
+  message: text('message'),                              // plain text, never markdown
+  // Money. amountCents is what the supporter chose, what credits the meter,
+  // and what the creator receives — fees are added on top of it.
+  amountCents: integer('amount_cents').notNull(),
+  platformFeeCents: integer('platform_fee_cents').notNull().default(0),
+  processingFeeCents: integer('processing_fee_cents').notNull().default(0),
+  totalChargedCents: integer('total_charged_cents').notNull().default(0),
+  // Cumulative, because Stripe's charge.amount_refunded is cumulative and
+  // partial refunds must be distinguishable from replayed events.
+  refundedCents: integer('refunded_cents').notNull().default(0),
+  currency: text('currency').notNull().default('USD'),
+  // 'pending' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'disputed'
+  status: text('status').notNull().default('pending'),
+  // Which payment rail carried this. Kept explicit so a rail change does not
+  // require rewriting history — the ledger predates the rail decision.
+  rail: text('rail').notNull().default('stripe'),
+  stripeCheckoutSessionId: text('stripe_checkout_session_id'),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  stripeChargeId: text('stripe_charge_id'),
+  paidAt: timestamp('paid_at'),
+  refundedAt: timestamp('refunded_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('contributions_funding_goal_id_idx').on(t.fundingGoalId),
+  index('contributions_payout_user_id_idx').on(t.payoutUserId),
+  index('contributions_backer_id_idx').on(t.backerId),
+  index('contributions_world_id_created_at_idx').on(t.worldId, t.createdAt),
+  // The hard idempotency floor: one contribution per Checkout Session,
+  // enforced by the database rather than by care.
+  uniqueIndex('contributions_session_uniq').on(t.stripeCheckoutSessionId),
+]);
+
+/* ── Per-user feature access ───────────────────────────────────────────
+ * Phased rollout, granted from the admin dashboard. The product plan calls
+ * for shipping funding to a limited cohort first (legal review, then the
+ * Restless Egg accelerator group) before general availability, and the same
+ * pattern is expected for minting and other later phases — hence a general
+ * (user, feature) table rather than a boolean column per feature.
+ *
+ * Semantics live in lib/featureAccess.ts: the NEXT_PUBLIC_* env flag means
+ * GENERALLY AVAILABLE, and a row here means "this person, ahead of that". */
+export const userFeatureFlags = pgTable('user_feature_flags', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  feature: text('feature').notNull(),                    // e.g. 'funding'
+  enabled: boolean('enabled').notNull().default(true),
+  // Who granted it, for an audit trail — this gates money features.
+  grantedBy: uuid('granted_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('user_feature_flags_user_feature_uniq').on(t.userId, t.feature),
+  index('user_feature_flags_feature_idx').on(t.feature),
 ]);
