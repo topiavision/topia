@@ -63,6 +63,23 @@ console.log(
     : '\n✓ STRIPE_SECRET_KEY is present (ticketing reached its own auth check).',
 );
 
+/* The Connect webhook: with a secret set it rejects an unsigned body as an
+ * invalid signature; without one it accepts and skips. 400 is the good case. */
+const hook = await probe('/api/webhooks/stripe/connect', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'stripe-signature': 't=1,v1=bogus' },
+  body: '{"type":"v2.core.account.updated"}',
+});
+if (hook.status === 400) {
+  console.log('✓ STRIPE_CONNECT_WEBHOOK_SECRET is live (unsigned bodies rejected).');
+} else if (hook.status === 200 && hook.body?.skipped === 'unsigned') {
+  console.log('· STRIPE_CONNECT_WEBHOOK_SECRET is NOT live — account status changes');
+  console.log('  will not arrive automatically. Not fatal: the payouts page refetches');
+  console.log('  from Stripe on load. Set it and REDEPLOY.');
+} else {
+  console.log(`? Connect webhook returned HTTP ${hook.status} ${JSON.stringify(hook.body)}`);
+}
+
 /* The payouts page must never hard-fail, even unconfigured — it has an
  * explicit "not switched on" state. A 500 here is a real bug. */
 const page = await probe('/dashboard/payouts');
