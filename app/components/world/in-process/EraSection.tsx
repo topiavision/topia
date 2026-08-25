@@ -16,7 +16,7 @@ import { RoadmapFundingBar } from './funding/RoadmapFundingBar';
 import { FundingMeter } from './funding/FundingMeter';
 import type { GoalMap } from './funding/types';
 /* ── One era section: header + node timeline + log ─────────────────── */
-export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit, canMint, onChanged, hideProjectChip, tourAnchor, goals, canFund, acceptingSupport, worldTitle, accessToken, onGoalsChanged }: {
+export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit, canMint, onChanged, hideProjectChip, tourAnchor, goals, canFund, acceptingSupport, payeeMissing, worldTitle, accessToken, onGoalsChanged }: {
   era: EraView; worldId: string; worldSlug: string; projects: ProjectOption[]; privyId: string;
   canEdit: boolean; canMint: boolean; onChanged: () => void; hideProjectChip?: boolean;
   /** Funding goals for this world, keyed by the id of what they fund. Empty
@@ -26,6 +26,8 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
   canFund?: boolean;
   /** Server-computed: this world's payee can actually receive money. */
   acceptingSupport?: boolean;
+  /** The world has no owner, so nothing here can be funded. Builders-only. */
+  payeeMissing?: boolean;
   worldTitle?: string;
   accessToken?: string | null;
   onGoalsChanged?: () => void;
@@ -104,6 +106,19 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
       )}
 
       {/* Node timeline — the mockup's connected dots + cards */}
+      {payeeMissing && (
+        <p
+          className="mt-3 font-mono text-[11px] leading-relaxed rounded-lg px-3.5 py-2.5"
+          style={{
+            color: 'var(--orange)',
+            border: '1px solid color-mix(in srgb, var(--orange) 40%, transparent)',
+          }}
+        >
+          This world has no owner set, so there&apos;s nobody to pay — funding is
+          unavailable until one is assigned on the Members page.
+        </p>
+      )}
+
       {goals && goals.size > 0 && (
         <RoadmapFundingBar
           milestones={era.milestones}

@@ -104,7 +104,12 @@ async function authorizeTarget(
 
   // Builders may SET a goal; the world's ADMIN is who gets PAID.
   const payee = await resolveWorldPayee(worldId);
-  if (!payee) return { error: 'This world has no owner to pay', status: 400 };
+  if (!payee) {
+    return {
+      error: 'This world has no owner set, so there is nobody to pay. Set an owner on the world\'s Members page, then try again.',
+      status: 400,
+    };
+  }
 
   return { userId: user.id, ownerUserId: payee.userId, worldId, title };
 }
@@ -153,17 +158,27 @@ export async function GET(request: NextRequest) {
      * Connect configured, the payee granted funding access, and their account
      * able to receive transfers. */
     let acceptingSupport = false;
-    if (worldId && isConnectConfigured() && goals.length > 0) {
+    // Whether a goal can be SET here at all — the payee exists and is in the
+    // funding cohort. Distinct from acceptingSupport, which also needs Stripe
+    // configured and the account able to receive.
+    let canSetGoals = false;
+    let payeeMissing = false;
+    if (worldId) {
       const payee = await resolveWorldPayee(worldId);
-      acceptingSupport = Boolean(
-        payee?.canAccept && (await hasFeature(payee.userId, FEATURE_FUNDING)),
-      );
+      payeeMissing = !payee;
+      if (payee) {
+        canSetGoals = await hasFeature(payee.userId, FEATURE_FUNDING);
+        acceptingSupport = Boolean(canSetGoals && payee.canAccept && isConnectConfigured());
+      }
     }
 
     // Editors refetch this straight after mutating, so it must never be CDN
     // cached — a created goal vanishing for 60s was a real bug in this feature
     // once already (PR #145).
-    return NextResponse.json({ goals, acceptingSupport }, { headers: NO_STORE });
+    return NextResponse.json(
+      { goals, acceptingSupport, canSetGoals, payeeMissing },
+      { headers: NO_STORE },
+    );
   } catch (error) {
     console.error('[funding] GET goals failed:', error);
     return NextResponse.json({ error: 'Could not load goals' }, { status: 500, headers: NO_STORE });

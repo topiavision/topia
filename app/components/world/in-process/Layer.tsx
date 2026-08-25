@@ -46,7 +46,7 @@ export default function InProcessLayer({
   /* Funding goals for this world, fetched once per mount and keyed by target.
    * A world with no goals gets one empty response and renders exactly as it
    * always has — funding is opt-in per milestone. */
-  const { goals, acceptingSupport, reload: reloadGoals } = useFundingGoals(worldId);
+  const { goals, acceptingSupport, canSetGoals, payeeMissing, reload: reloadGoals } = useFundingGoals(worldId);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -195,8 +195,9 @@ export default function InProcessLayer({
           onChanged={onChanged}
           hideProjectChip={!!projectScope}
           goals={goals}
-          canFund={canEdit}
+          canFund={canEdit && canSetGoals}
           acceptingSupport={acceptingSupport}
+          payeeMissing={canEdit && payeeMissing}
           accessToken={accessToken}
           onGoalsChanged={reloadGoals}
         />

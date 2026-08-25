@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { worlds, creators, worldMembers, users, eventHosts } from '@/lib/db/schema';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and } from 'drizzle-orm';
 import { isAdminRequest } from '@/lib/adminAuth';
 
 // GET – all worlds (including unpublished) with members
@@ -166,28 +166,40 @@ export async function DELETE(request: Request) {
   }
 }
 
-// Helper: sync world members (replace all members for a world)
+/* Sync world members (replace all members for a world).
+ *
+ * PRESERVES OWNERSHIP. This function deletes and re-inserts every member, and
+ * the admin UI only ever sends builders and collaborators — so before this
+ * guard, saving a world in the admin dashboard silently demoted its owner to
+ * world_builder. That was invisible until creator payouts shipped, at which
+ * point it started removing the world's PAYEE: funding goals could no longer
+ * be saved, with a confusing "no owner to pay" error and no clue that editing
+ * the world had caused it. It is also why most worlds have no owner at all.
+ *
+ * The owner keeps their row and their role regardless of which lists they
+ * appear in. Ownership changes deliberately, via the members page or
+ * scripts/set-world-owner.mjs — never as a side effect of an unrelated edit. */
 async function syncWorldMembers(worldId: string, worldBuilderIds: string[], collaboratorIds: string[]) {
-  // Delete existing members for this world
+  const owners = await db
+    .select({ userId: worldMembers.userId })
+    .from(worldMembers)
+    .where(and(eq(worldMembers.worldId, worldId), eq(worldMembers.role, 'owner')));
+  const ownerIds = new Set(owners.map((o) => o.userId));
+
   await db.delete(worldMembers).where(eq(worldMembers.worldId, worldId));
 
-  // Insert world builders
-  for (const userId of worldBuilderIds) {
-    await db.insert(worldMembers).values({
-      worldId,
-      userId,
-      role: 'world_builder',
-    });
+  // Owners first, restored with their role intact.
+  for (const userId of ownerIds) {
+    await db.insert(worldMembers).values({ worldId, userId, role: 'owner' });
   }
 
-  // Insert collaborators (skip if already a world builder)
+  for (const userId of worldBuilderIds) {
+    if (ownerIds.has(userId)) continue; // already restored, and outranks builder
+    await db.insert(worldMembers).values({ worldId, userId, role: 'world_builder' });
+  }
+
   for (const userId of collaboratorIds) {
-    if (!worldBuilderIds.includes(userId)) {
-      await db.insert(worldMembers).values({
-        worldId,
-        userId,
-        role: 'collaborator',
-      });
-    }
+    if (ownerIds.has(userId) || worldBuilderIds.includes(userId)) continue;
+    await db.insert(worldMembers).values({ worldId, userId, role: 'collaborator' });
   }
 }
