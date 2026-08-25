@@ -1,7 +1,7 @@
 /* Shared view types for the In Process layer — one shape per concept so
  * every leaf component types off the same definitions. */
 
-export interface EraMilestoneView { id: string; title: string; description: string | null; startDate: string | null; endDate: string | null; startPrecision: string | null; endPrecision: string | null; dateLabel: string | null; status: string; imageUrl: string | null; }
+export interface EraMilestoneView { id: string; title: string; description: string | null; details?: string | null; startDate: string | null; endDate: string | null; startPrecision: string | null; endPrecision: string | null; dateLabel: string | null; status: string; imageUrl: string | null; }
 export interface EraPostView { id: string; kind: string; title: string; body: string | null; imageUrl: string | null; linkUrl: string | null; mintedUrl: string | null; milestoneId?: string | null; createdAt: string; }
 
 /* One process-log card's data, whether it's a native post or a synced

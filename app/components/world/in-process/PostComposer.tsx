@@ -76,10 +76,14 @@ export function PostComposer({ era, privyId, canMint, initialMilestoneId = '', o
           <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} rows={4} placeholder="Write it out" className={inputCls} />
         </>
       )}
-      {needsLink && (
+      {(needsLink || draft.kind === 'thought') && (
         <>
           <input value={draft.linkUrl} onChange={(e) => setDraft({ ...draft, linkUrl: e.target.value })}
-            placeholder={draft.kind === 'link' ? 'Paste any link from the internet' : 'Paste a YouTube / SoundCloud / Spotify link'} className={inputCls} />
+            placeholder={
+              draft.kind === 'thought' ? 'Add a link (optional) — the venue, the reference, the thing'
+              : draft.kind === 'link' ? 'Paste any link from the internet'
+              : 'Paste a YouTube / SoundCloud / Spotify link'
+            } className={inputCls} />
           <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Title (optional — uses the site name)" className={inputCls} />
         </>
       )}

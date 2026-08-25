@@ -9,7 +9,7 @@ import ProfileCompletionWidget from './_components/ProfileCompletionWidget';
 import PendingInvitationsWidget from './_components/PendingInvitationsWidget';
 import { FundingMeter } from '../components/world/in-process/funding/FundingMeter';
 import { usd } from '../components/world/in-process/funding/format';
-import type { FundingGoalView } from '../components/world/in-process/funding/types';
+import { totalRaisedCents, type FundingGoalView } from '../components/world/in-process/funding/types';
 
 // Every stat carries a one-line explainer under the number — the bare "+2"
 // and the mystery "Builder" tile were reported as confusing. Deltas say what
@@ -46,7 +46,7 @@ export default function DashboardOverviewPage() {
   }, [worldMemberships]);
 
   const allGoals = Object.values(goalsByWorld).flat();
-  const totalRaised = allGoals.reduce((n, g) => n + g.raisedCents, 0);
+  const totalRaised = allGoals.reduce((n, g) => n + totalRaisedCents(g), 0);
 
   /* Payout next-step: only meaningful for accounts in the funding cohort.
    * Everyone else never sees the word "payout" here. */
@@ -254,7 +254,7 @@ function YourWorldsSection({ worldMemberships, goalsByWorld }: {
       <div className="divide-y divide-ink/[0.04]">
         {worldMemberships.slice(0, 6).map((w) => {
           const goals = goalsByWorld[w.worldId];
-          const raised = goals?.reduce((n, g) => n + g.raisedCents, 0) ?? 0;
+          const raised = goals?.reduce((n, g) => n + totalRaisedCents(g), 0) ?? 0;
           const target = goals?.reduce((n, g) => n + (g.goalCents ?? 0), 0) ?? 0;
           return (
             <Link

@@ -38,6 +38,7 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canF
   const [draft, setDraft] = useState({
     title: existing?.title ?? '',
     description: existing?.description ?? '',
+    details: existing?.details ?? '',
     startDate: existing?.startDate ?? '',
     endDate: existing?.endDate ?? '',
     startPrecision: (existing?.startPrecision ?? 'month') as Precision,
@@ -52,6 +53,9 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canF
   // perfectly normal, unfunded milestone.
   const [goalDollars, setGoalDollars] = useState(
     goal?.goalCents != null ? String(goal.goalCents / 100) : '',
+  );
+  const [externalDollars, setExternalDollars] = useState(
+    goal?.externalRaisedCents ? String(goal.externalRaisedCents / 100) : '',
   );
   const [blurb, setBlurb] = useState(goal?.blurb ?? '');
   const [goalError, setGoalError] = useState<string | null>(null);
@@ -72,12 +76,14 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canF
       /* Persist the goal against the saved milestone. Only when the creator
        * actually engaged with funding — an untouched fieldset must not create
        * an empty goal row, and must not fail the milestone save either. */
-      const touchedFunding = goalDollars.trim() !== '' || blurb.trim() !== '' || Boolean(goal);
+      const touchedFunding = goalDollars.trim() !== '' || blurb.trim() !== '' || externalDollars.trim() !== '' || Boolean(goal);
       if (canFund && touchedFunding) {
         const saved = await res.json().catch(() => ({}));
         const milestoneId = existing?.id ?? saved?.milestone?.id;
         const parsed = parseGoalDollars(goalDollars);
         if (parsed.error) { setGoalError(parsed.error); return; }
+        const external = parseGoalDollars(externalDollars);
+        if (external.error) { setGoalError(`Outside-Topia amount: ${external.error.toLowerCase()}`); return; }
         if (milestoneId) {
           const gRes = await fetch('/api/funding/goals', {
             method: 'POST',
@@ -90,6 +96,7 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canF
               targetType: 'milestone',
               targetId: milestoneId,
               goalCents: parsed.cents,
+              externalRaisedCents: external.cents ?? 0,
               blurb: blurb.trim() || null,
             }),
           });
@@ -134,6 +141,20 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canF
             <label className={labelCls}>One line about it (optional)</label>
             <input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="What this stage is" className={inputCls} />
           </div>
+          <div>
+            <label className={labelCls}>The full picture (optional)</label>
+            {/* Latashá's brief: a stage like Ideation carries real open
+                questions — backers need room to read what they're funding.
+                The one-liner above stays the card summary; this shows on the
+                expanded milestone view. */}
+            <textarea
+              value={draft.details}
+              onChange={(e) => setDraft({ ...draft, details: e.target.value })}
+              placeholder="What is this stage really? The program? The look? The budget? Say it all here."
+              rows={4}
+              className={`${inputCls} resize-y min-h-[88px] leading-relaxed`}
+            />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <EraDateField label="Starts" value={draft.startDate} precision={draft.startPrecision}
               onChange={(n) => setDraft({ ...draft, startDate: n.value, startPrecision: n.precision })} />
@@ -155,6 +176,8 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canF
               onGoalDollarsChange={(v) => { setGoalDollars(v); setGoalError(null); }}
               blurb={blurb}
               onBlurbChange={setBlurb}
+              externalDollars={externalDollars}
+              onExternalDollarsChange={(v) => { setExternalDollars(v); setGoalError(null); }}
               error={goalError}
             />
           )}

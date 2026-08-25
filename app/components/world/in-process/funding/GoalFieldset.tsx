@@ -24,6 +24,8 @@ export function GoalFieldset({
   onGoalDollarsChange,
   blurb,
   onBlurbChange,
+  externalDollars,
+  onExternalDollarsChange,
   error,
 }: {
   existing?: FundingGoalView;
@@ -32,6 +34,10 @@ export function GoalFieldset({
   onGoalDollarsChange: (v: string) => void;
   blurb: string;
   onBlurbChange: (v: string) => void;
+  /** Money raised outside Topia, as typed. Omit both to hide the field
+   *  (surfaces that don't support it yet). */
+  externalDollars?: string;
+  onExternalDollarsChange?: (v: string) => void;
   error?: string | null;
 }) {
   const raised = existing?.raisedCents ?? 0;
@@ -95,6 +101,27 @@ export function GoalFieldset({
               className={inputCls}
             />
           </div>
+
+          {onExternalDollarsChange !== undefined && (
+            <div>
+              <label className={labelCls}>Already raised outside Topia (optional)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[13px] text-ink/40 pointer-events-none">$</span>
+                <input
+                  value={externalDollars ?? ''}
+                  onChange={(e) => onExternalDollarsChange(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="2,500"
+                  className={inputCls}
+                  style={{ paddingLeft: 26 }}
+                />
+              </div>
+              <p className="font-mono text-[10.5px] text-ink/40 mt-1">
+                Grants, patrons, your own money. It counts toward the bar and is always
+                shown as raised elsewhere — most projects don&apos;t start at zero.
+              </p>
+            </div>
+          )}
 
           {raised > 0 && (
             <p className="font-mono text-[11px]" style={{ color: 'var(--accent-ink)' }}>

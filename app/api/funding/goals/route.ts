@@ -146,6 +146,7 @@ export async function GET(request: NextRequest) {
         titleSnapshot: fundingGoals.titleSnapshot,
         goalCents: fundingGoals.goalCents,
         raisedCents: fundingGoals.raisedCents,
+        externalRaisedCents: fundingGoals.externalRaisedCents,
         patronCount: fundingGoals.patronCount,
         blurb: fundingGoals.blurb,
         status: fundingGoals.status,
@@ -215,6 +216,18 @@ export async function POST(request: NextRequest) {
     const goal = cleanGoalCents(body.goalCents);
     if ('error' in goal) return NextResponse.json({ error: goal.error }, { status: 400, headers: NO_STORE });
 
+    /* Money raised OUTSIDE Topia — creator-entered, counts toward the bar,
+     * always labeled as external in the UI. Kept apart from raisedCents,
+     * which only the contributions ledger may write. */
+    let externalRaisedCents: number | undefined;
+    if (body.externalRaisedCents !== undefined) {
+      const n = Number(body.externalRaisedCents);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 100_000_000) {
+        return NextResponse.json({ error: 'Outside-Topia amount must be between $0 and $1,000,000' }, { status: 400, headers: NO_STORE });
+      }
+      externalRaisedCents = n;
+    }
+
     const values = {
       targetType: String(targetType),
       targetId: String(targetId),
@@ -222,6 +235,7 @@ export async function POST(request: NextRequest) {
       worldId: auth.worldId,
       titleSnapshot: auth.title,
       goalCents: goal.cents,
+      ...(externalRaisedCents !== undefined ? { externalRaisedCents } : {}),
       blurb: blurb ? String(blurb).slice(0, 500) : null,
       updatedAt: new Date(),
     };
@@ -238,6 +252,7 @@ export async function POST(request: NextRequest) {
           worldId: values.worldId,
           titleSnapshot: values.titleSnapshot,
           goalCents: values.goalCents,
+          ...(externalRaisedCents !== undefined ? { externalRaisedCents } : {}),
           blurb: values.blurb,
           updatedAt: values.updatedAt,
         },

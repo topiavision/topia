@@ -532,7 +532,11 @@ export const eraMilestones = pgTable('era_milestones', {
   id: uuid('id').defaultRandom().primaryKey(),
   eraId: uuid('era_id').references(() => worldEras.id, { onDelete: 'cascade' }).notNull(),
   title: text('title').notNull(),           // "Album Production"
-  description: text('description'),
+  description: text('description'),   // the ONE-LINE card summary
+  // Multi-line 'full picture' shown on the expanded milestone view — added
+  // per Latashá's Aug 25 brief; a stage like Ideation needs room to say what
+  // backers are actually funding.
+  details: text('details'),
   // Real dates with precision, same as eras ("MAR 2026 — JUN 2026",
   // "MAR 3, 2026", "2026"). dateLabel below is the legacy free-text fallback.
   startDate: date('start_date'),
@@ -1052,6 +1056,11 @@ export const fundingGoals = pgTable('funding_goals', {
   // Caches derived from paid contributions; the ledger is authoritative.
   // Only ever mutated by SQL expression inside the crediting transaction.
   raisedCents: integer('raised_cents').notNull().default(0),
+  /* Money raised OUTSIDE Topia — grants, patrons, the creator's own — entered
+   * by the creator, counted toward the bar, always labeled as external.
+   * Deliberately a separate column: the contributions ledger stays the sole
+   * source for raisedCents, so recomputes can never clobber this. */
+  externalRaisedCents: integer('external_raised_cents').notNull().default(0),
   patronCount: integer('patron_count').notNull().default(0),
   blurb: text('blurb'),                                  // "what support pays for"
   status: text('status').notNull().default('open'),      // 'open' | 'closed'

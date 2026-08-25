@@ -74,7 +74,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     existing ? 'refine' : (scopedProject || projects.length === 0) ? 'describe' : 'project');
   const [draft, setDraftState] = useState<DraftRoadmap | null>(() =>
     existing
-      ? draftFromEra(existing, goals && new Map([...goals.entries()].map(([k, g]) => [k, { goalCents: g.goalCents, blurb: g.blurb }])))
+      ? draftFromEra(existing, goals && new Map([...goals.entries()].map(([k, g]) => [k, { goalCents: g.goalCents, blurb: g.blurb, externalRaisedCents: g.externalRaisedCents }])))
       : null);
   const [saving, setSaving] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -172,6 +172,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
           body: JSON.stringify({
             privyId, targetType: 'milestone', targetId: milestoneId,
             goalCents: cmd.cents, blurb: (target?.goalBlurb ?? '').trim() || null,
+            externalRaisedCents: cmd.externalCents ?? target?.goalExternalCents ?? 0,
           }),
         });
         if (!gRes.ok) {
@@ -328,6 +329,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
                   targetType: 'milestone',
                   targetId: milestoneId,
                   goalCents: m.goalCents,
+                  externalRaisedCents: m.goalExternalCents ?? 0,
                   blurb: (m.goalBlurb ?? '').trim() || null,
                 }),
               });

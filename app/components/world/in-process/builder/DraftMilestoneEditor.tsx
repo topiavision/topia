@@ -40,6 +40,10 @@ export function DraftMilestoneEditor({ milestone, index, canFund, onCommand, onC
     milestone.goalCents != null ? String(milestone.goalCents / 100) : '',
   );
   const [goalError, setGoalError] = useState<string | null>(null);
+  const [externalDollars, setExternalDollars] = useState(
+    milestone.goalExternalCents != null && milestone.goalExternalCents > 0
+      ? String(milestone.goalExternalCents / 100) : '',
+  );
   const ref = { index } as const;
 
   return (
@@ -49,6 +53,15 @@ export function DraftMilestoneEditor({ milestone, index, canFund, onCommand, onC
         <input
           value={milestone.title}
           onChange={(e) => onCommand({ kind: 'rename_milestone', ref, title: e.target.value })}
+          className={inputCls}
+        />
+      </div>
+      <div>
+        <label className={labelCls}>One line about it (optional)</label>
+        <input
+          value={milestone.description ?? ''}
+          onChange={(e) => onCommand({ kind: 'set_milestone_description', ref, text: e.target.value || null })}
+          placeholder="What this stage is"
           className={inputCls}
         />
       </div>
@@ -82,6 +95,13 @@ export function DraftMilestoneEditor({ milestone, index, canFund, onCommand, onC
           }}
           blurb={milestone.goalBlurb ?? ''}
           onBlurbChange={(v) => onCommand({ kind: 'set_goal', ref, cents: parseGoalDollars(goalDollars).cents, blurb: v || null })}
+          externalDollars={externalDollars}
+          onExternalDollarsChange={(v) => {
+            setExternalDollars(v);
+            const parsed = parseGoalDollars(v);
+            setGoalError(parsed.error ? `Outside amount: ${parsed.error.toLowerCase()}` : null);
+            if (!parsed.error) onCommand({ kind: 'set_goal', ref, cents: parseGoalDollars(goalDollars).cents, externalCents: parsed.cents ?? 0 });
+          }}
           error={goalError}
         />
       )}

@@ -219,7 +219,7 @@ export function applyCommand(draft: DraftRoadmap, cmd: BuilderCommand, now: Date
       const ms: DraftMilestone = {
         key: freshKey(draft), title: cmd.title, description: null,
         start: cmd.start, end: null, status: 'upcoming', datePinned: !!cmd.start,
-        goalCents: null, goalBlurb: null,
+        goalCents: null, goalBlurb: null, goalExternalCents: null,
       };
       const milestones = cmd.start ? sortByDate([...draft.milestones, ms]) : [...draft.milestones, ms];
       return {
@@ -273,6 +273,12 @@ export function applyCommand(draft: DraftRoadmap, cmd: BuilderCommand, now: Date
       const word = { done: 'done ✓', now: 'in motion', upcoming: 'upcoming', paused: 'paused' }[cmd.status];
       return { draft: { ...draft, milestones }, ok: true, reply: `“${draft.milestones[r.index].title}” marked ${word}.` };
     }
+    case 'set_milestone_description': {
+      const r = matchMilestone(cmd.ref, draft.milestones);
+      if (!r.ok) return { draft, ok: false, reply: ambiguousReply(r.candidates, draft.milestones, 'title' in cmd.ref ? cmd.ref.title : undefined) };
+      const milestones = draft.milestones.map((m, i) => (i === r.index ? { ...m, description: cmd.text } : m));
+      return { draft: { ...draft, milestones }, ok: true, reply: cmd.text ? `Noted on “${draft.milestones[r.index].title}”.` : `Cleared the note on “${draft.milestones[r.index].title}”.` };
+    }
     case 'set_goal': {
       const r = matchMilestone(cmd.ref, draft.milestones);
       if (!r.ok) return { draft, ok: false, reply: ambiguousReply(r.candidates, draft.milestones, 'title' in cmd.ref ? cmd.ref.title : undefined) };
@@ -284,7 +290,12 @@ export function applyCommand(draft: DraftRoadmap, cmd: BuilderCommand, now: Date
       }
       const target = draft.milestones[r.index];
       const milestones = draft.milestones.map((m, i) => (i === r.index
-        ? { ...m, goalCents: cmd.cents, goalBlurb: cmd.blurb !== undefined ? cmd.blurb : m.goalBlurb }
+        ? {
+            ...m,
+            goalCents: cmd.cents,
+            goalBlurb: cmd.blurb !== undefined ? cmd.blurb : m.goalBlurb,
+            goalExternalCents: cmd.externalCents !== undefined ? cmd.externalCents : m.goalExternalCents,
+          }
         : m));
       return {
         draft: { ...draft, milestones }, ok: true,

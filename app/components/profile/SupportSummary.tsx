@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FundingMeter } from '../world/in-process/funding/FundingMeter';
 import { usd } from '../world/in-process/funding/format';
-import type { FundingGoalView } from '../world/in-process/funding/types';
+import { totalRaisedCents, type FundingGoalView } from '../world/in-process/funding/types';
 
 const LIFE_GREEN = 'var(--green)';
 
@@ -44,14 +44,14 @@ export function SupportSummary({ ownerUserId, displayName }: {
   const life = open.filter((g) => g.targetType === 'life_chapter');
   const work = open.filter((g) => g.targetType !== 'life_chapter');
 
-  const sum = (rows: FundingGoalView[], key: 'raisedCents' | 'goalCents') =>
-    rows.reduce((n, g) => n + (g[key] ?? 0), 0);
+  const sumGoal = (rows: FundingGoalView[]) => rows.reduce((n, g) => n + (g.goalCents ?? 0), 0);
+  const sumRaised = (rows: FundingGoalView[]) => rows.reduce((n, g) => n + totalRaisedCents(g), 0);
 
-  const totalRaised = sum(open, 'raisedCents');
-  const totalGoal = sum(open, 'goalCents');
+  const totalRaised = sumRaised(open);
+  const totalGoal = sumGoal(open);
   const patrons = open.reduce((n, g) => n + g.patronCount, 0);
-  const lifeRaised = sum(life, 'raisedCents');
-  const workRaised = sum(work, 'raisedCents');
+  const lifeRaised = sumRaised(life);
+  const workRaised = sumRaised(work);
 
   const pct = (n: number) => (totalRaised > 0 ? (n / Math.max(totalGoal, totalRaised)) * 100 : 0);
 
@@ -141,7 +141,7 @@ function GoalGroup({ title, goals, accent }: {
             </div>
             {g.blurb && <p className="font-mono text-[11.5px] text-ink/55 mt-1.5 leading-relaxed">{g.blurb}</p>}
             <FundingMeter
-              raisedCents={g.raisedCents}
+              raisedCents={totalRaisedCents(g)}
               goalCents={g.goalCents}
               size="md"
               className="mt-2.5"

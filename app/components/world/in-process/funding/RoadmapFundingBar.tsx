@@ -11,6 +11,7 @@
 import { FundingMeter } from './FundingMeter';
 import { usd } from './format';
 import type { EraMilestoneView } from '../types';
+import { totalRaisedCents } from './types';
 import type { GoalMap } from './types';
 
 export function RoadmapFundingBar({
@@ -34,8 +35,8 @@ export function RoadmapFundingBar({
 
   // A project-level goal stands on its own; otherwise sum the milestones.
   const raised = projectGoal
-    ? projectGoal.raisedCents
-    : milestoneGoals.reduce((n, g) => n + g.raisedCents, 0);
+    ? totalRaisedCents(projectGoal)
+    : milestoneGoals.reduce((n, g) => n + totalRaisedCents(g), 0);
   const target = projectGoal
     ? projectGoal.goalCents
     : milestoneGoals.reduce<number | null>(
@@ -49,7 +50,7 @@ export function RoadmapFundingBar({
   if (raised === 0 && target == null) return null;
 
   const fundedCount = milestoneGoals.filter(
-    (g) => g.goalCents != null && g.raisedCents >= g.goalCents,
+    (g) => g.goalCents != null && totalRaisedCents(g) >= g.goalCents,
   ).length;
 
   return (

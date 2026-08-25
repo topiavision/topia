@@ -28,7 +28,7 @@ async function authorizeEra(privyId: string, eraId: string) {
 // POST /api/worlds/eras/milestones — add a milestone (builders).
 export async function POST(request: Request) {
   try {
-    const { privyId, eraId, title, description, startDate, endDate, startPrecision, endPrecision, dateLabel, status, imageUrl, sortOrder } = await request.json();
+    const { privyId, eraId, title, description, details, startDate, endDate, startPrecision, endPrecision, dateLabel, status, imageUrl, sortOrder } = await request.json();
     if (!privyId || !eraId || !title?.trim()) {
       return NextResponse.json({ error: 'eraId and title are required' }, { status: 400 });
     }
@@ -43,6 +43,8 @@ export async function POST(request: Request) {
       eraId,
       title: String(title).trim(),
       description: description ? String(description).trim() : null,
+      // The multi-line 'full picture'; description above stays the one-liner.
+      details: details ? String(details).trim().slice(0, 4000) : null,
       startDate: cleanDate(startDate) ?? null,
       endDate: cleanDate(endDate) ?? null,
       startPrecision: cleanPrecision(startPrecision) ?? null,
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
 // PUT /api/worlds/eras/milestones — update (builders).
 export async function PUT(request: Request) {
   try {
-    const { privyId, milestoneId, ...fields } = await request.json();
+    const { privyId, milestoneId, details, ...fields } = await request.json();
     if (!privyId || !milestoneId) return NextResponse.json({ error: 'milestoneId is required' }, { status: 400 });
 
     const [existing] = await db.select({ eraId: eraMilestones.eraId }).from(eraMilestones)
@@ -84,6 +86,7 @@ export async function PUT(request: Request) {
     await db.update(eraMilestones).set({
       ...(fields.title !== undefined ? { title: String(fields.title).trim() } : {}),
       ...(fields.description !== undefined ? { description: fields.description ? String(fields.description).trim() : null } : {}),
+      ...(details !== undefined ? { details: details ? String(details).trim().slice(0, 4000) : null } : {}),
       ...(startDate !== undefined ? { startDate } : {}),
       ...(endDate !== undefined ? { endDate } : {}),
       ...(startPrecision !== undefined ? { startPrecision } : {}),
