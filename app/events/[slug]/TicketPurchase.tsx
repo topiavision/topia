@@ -372,11 +372,14 @@ export default function TicketPurchase({
         {(tiers ?? []).map((t) => {
           const ended = t.saleState === 'ended';
           const upcoming = t.saleState === 'upcoming';
+          // Not-purchasable states are quiet: the whole row greys out, the
+          // status reads as a small line under the name, and there's no
+          // button-shaped element at all — only live tiers get a Get button.
           return (
             <div
               key={t.id}
               className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border"
-              style={{ borderColor: 'var(--border-color)', opacity: ended ? 0.55 : 1 }}
+              style={{ borderColor: 'var(--border-color)', opacity: ended || upcoming ? 0.5 : 1 }}
             >
               <div className="min-w-0">
                 <p className="font-mono text-[14px] font-bold truncate" style={{ color: 'var(--foreground)', textDecoration: ended ? 'line-through' : undefined }}>
@@ -385,6 +388,16 @@ export default function TicketPurchase({
                 {t.description && (
                   <p className="font-mono text-[12px] opacity-60 truncate" style={{ color: 'var(--foreground)' }}>
                     {t.description}
+                  </p>
+                )}
+                {upcoming && (
+                  <p className="font-mono text-[11px] uppercase tracking-[1px] opacity-70" style={{ color: 'var(--foreground)' }}>
+                    {t.salesStartAt ? `On sale ${saleDateLabel(t.salesStartAt)}` : 'Coming soon'}
+                  </p>
+                )}
+                {ended && (
+                  <p className="font-mono text-[11px] uppercase tracking-[1px] opacity-70" style={{ color: 'var(--foreground)' }}>
+                    Sale ended
                   </p>
                 )}
                 {!ended && !upcoming && t.remaining != null && t.remaining <= 10 && !t.soldOut && (
@@ -397,15 +410,7 @@ export default function TicketPurchase({
                 <span className="font-mono text-[14px] font-bold" style={{ color: 'var(--foreground)', textDecoration: ended ? 'line-through' : undefined }}>
                   {t.priceCents === 0 ? 'Free' : usd(t.priceCents)}
                 </span>
-                {ended ? (
-                  <span className="font-mono text-[11px] uppercase tracking-widest opacity-70" style={{ color: 'var(--foreground)' }}>
-                    Sale ended
-                  </span>
-                ) : upcoming ? (
-                  <span className="px-3 py-2 font-mono text-[11px] uppercase tracking-widest rounded-lg border" style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)', opacity: 0.7 }}>
-                    {t.salesStartAt ? `On sale ${saleDateLabel(t.salesStartAt)}` : 'Coming soon'}
-                  </span>
-                ) : (
+                {!ended && !upcoming && (
                   <button
                     onClick={() => openFor(t)}
                     disabled={t.soldOut}
