@@ -22,10 +22,15 @@ async function getCredits(projectId: string) {
 
 // Replace a project's credits. Only world members can be credited — anything
 // else in the payload is silently dropped rather than 400ing the whole save.
+// That includes malformed ids: userId feeds a uuid column, and a non-UUID
+// string makes Postgres 22P02 the whole request AFTER the project row was
+// inserted, stranding an orphan project.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function replaceCredits(projectId: string, worldId: string, credits: unknown) {
   if (!Array.isArray(credits)) return;
   const wanted = credits
-    .filter((c): c is { userId: string; role?: string } => Boolean(c && typeof c.userId === 'string'))
+    .filter((c): c is { userId: string; role?: string } => Boolean(c && typeof c.userId === 'string' && UUID_RE.test(c.userId)))
     .slice(0, 30);
   const memberRows = wanted.length
     ? await db
