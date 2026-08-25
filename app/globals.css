@@ -521,6 +521,69 @@ h3 {
   animation-delay: var(--d, 0ms);
 }
 
+/* ── Roadmap Builder (In Process) ─────────────────────────────── */
+
+/* Chat turns + chips rise in; chips stagger via --d like takeover rows. */
+.ipb-enter {
+  animation: fadeUp 0.35s ease-out both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Milestones materialize onto the canvas: rise, overshoot a hair, and a
+ * one-time orange edge flash that reads as "just conjured". */
+@keyframes ipbMaterialize {
+  0% { opacity: 0; transform: translateY(10px) scale(0.97); }
+  60% { opacity: 1; transform: translateY(-2px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ipbEdgeFlash {
+  0% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--orange) 55%, transparent), 0 0 18px 0 color-mix(in srgb, var(--orange) 30%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
+}
+.ipb-materialize {
+  animation: ipbMaterialize 0.45s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+.ipb-materialize > button {
+  animation: ipbEdgeFlash 1.1s ease-out both;
+  animation-delay: calc(var(--d, 0ms) + 0.25s);
+}
+
+/* Breathing ring around the NOW node — the roadmap's heartbeat. */
+@keyframes ipbNowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--orange) 45%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--orange) 0%, transparent), 0 0 14px 2px color-mix(in srgb, var(--orange) 35%, transparent); }
+}
+.ipb-now-glow { border-radius: 9999px; animation: ipbNowPulse 2.2s ease-in-out infinite; }
+
+/* The builder's ✦ — a slow, alive shimmer. */
+@keyframes ipbOrb {
+  0%, 100% { opacity: 1; text-shadow: 0 0 6px color-mix(in srgb, var(--orange) 45%, transparent); }
+  50% { opacity: 0.65; text-shadow: 0 0 14px color-mix(in srgb, var(--orange) 70%, transparent); }
+}
+.ipb-orb { display: inline-block; animation: ipbOrb 2.8s ease-in-out infinite; }
+
+/* Typing indicator dots. */
+@keyframes ipbDot {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.ipb-dot { animation: ipbDot 1.1s ease-in-out infinite; animation-delay: var(--d, 0ms); }
+
+/* Typewriter caret on the reply being written. */
+@keyframes ipbCaret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.ipb-caret { animation: ipbCaret 0.9s step-end infinite; color: var(--orange); }
+
+/* Canvas ground: a faint drafting grid with an orange energy wash up top —
+ * everything via theme tokens so both themes get it for free. */
+.ipb-canvas-bg {
+  background-image:
+    radial-gradient(70% 36% at 75% 0%, color-mix(in srgb, var(--orange) 7%, transparent), transparent 70%),
+    linear-gradient(color-mix(in srgb, var(--page-text) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--page-text) 4%, transparent) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px, 28px 28px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .live-ping,
   .live-ping-late,
@@ -529,7 +592,14 @@ h3 {
   .takeover-card,
   .takeover-stagger,
   .takeover-cta::after,
-  .live-enter {
+  .live-enter,
+  .ipb-enter,
+  .ipb-materialize,
+  .ipb-materialize > button,
+  .ipb-now-glow,
+  .ipb-orb,
+  .ipb-dot,
+  .ipb-caret {
     animation: none;
   }
 }

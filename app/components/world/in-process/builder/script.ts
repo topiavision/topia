@@ -6,7 +6,7 @@
 import type { DraftRoadmap } from '@/lib/roadmap-builder/types';
 import { eraDateRange } from '@/lib/eraDates';
 
-export type Stage = 'project' | 'name_project' | 'describe' | 'timeframe' | 'refine' | 'saving';
+export type Stage = 'project' | 'name_project' | 'describe' | 'timeframe' | 'refine' | 'saving' | 'done';
 
 export const COPY = {
   intro: `Let's build a roadmap ✦ Which project is this for?`,
@@ -28,8 +28,13 @@ export const COPY = {
   renamePickPrompt: `Which milestone should we rename?`,
   renameTextPrompt: (title: string) => `What should “${title}” be called?`,
   markDonePrompt: `Which one is done?`,
+  fundPickPrompt: `Which milestone should ask for support? Not every one needs money — pick the ones that do.`,
+  fundAmountPrompt: (title: string) => `What's the goal for “${title}”? A number is enough — “$800” or “1.5k”.`,
+  fundAmountRetry: `I need a dollar amount — “$800”, “1,200”, “1.5k”.`,
   saveFailed: (serverError: string | null) => serverError || `Could not save — try again?`,
   saving: `Saving your roadmap…`,
+  savedPartialGoals: (n: number, serverError: string | null) =>
+    `Roadmap saved ✓ — but ${n} funding goal${n > 1 ? 's' : ''} didn't stick${serverError ? ` (${serverError})` : ''}. You can add ${n > 1 ? 'them' : 'it'} anytime from the milestone editor on the timeline.`,
 } as const;
 
 export const CHIP = {
@@ -45,7 +50,9 @@ export const CHIP = {
   changeTimeline: 'Change the timeline',
   markDone: 'Mark one done ✓',
   rename: 'Rename it',
+  fund: 'Fund a milestone $',
   save: 'Save roadmap ✦',
+  finishPartial: 'Take me to it ✦',
   tryAgain: 'Try again',
   keepEditing: 'Keep editing',
   cancel: 'Never mind',

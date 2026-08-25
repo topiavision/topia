@@ -9,7 +9,7 @@
 import { parseNaturalDate, parseDateRange, distributeDates } from '../lib/roadmap-builder/dates';
 import { parseSeed } from '../lib/roadmap-builder/parse';
 import { TEMPLATES, templateById, instantiate } from '../lib/roadmap-builder/templates';
-import { parseUtterance, applyCommand, matchMilestone, draftToBatchPayload } from '../lib/roadmap-builder/commands';
+import { parseUtterance, applyCommand, matchMilestone, draftToBatchPayload, parseDollars } from '../lib/roadmap-builder/commands';
 import { MAX_COUNTABLE_REPEATS } from '../lib/roadmap-builder/types';
 
 const NOW = new Date('2026-08-24T00:00:00'); // pinned — a Monday in August
@@ -149,6 +149,30 @@ check('ambiguous ref lists candidates', (() => {
   const m = matchMilestone({ title: 'the' }, draft.milestones);
   return !m.ok;
 })(), true);
+
+/* ── Funding goals ─────────────────────────────────────────────────── */
+console.log('\nFunding:');
+check('"$500" → 50000c', parseDollars('$500'), 50000);
+check('"1,200" → 120000c', parseDollars('1,200'), 120000);
+check('"1.5k" → 150000c', parseDollars('1.5k'), 150000);
+check('"March" is not money', parseDollars('March'), null);
+check('"add a $500 goal to mixing" parses as set_goal (not add_milestone)',
+  parseUtterance('add a $500 goal to mixing', NOW),
+  { kind: 'set_goal', ref: { title: 'mixing' }, cents: 50000 });
+check('"fund mastering with 1k"', parseUtterance('fund mastering with 1k', NOW),
+  { kind: 'set_goal', ref: { title: 'mastering' }, cents: 100000 });
+check('"remove the goal on mixing"', parseUtterance('remove the goal on mixing', NOW),
+  { kind: 'set_goal', ref: { title: 'mixing' }, cents: null });
+
+r = applyCommand(draft, parseUtterance('fund vinyl drop $800', NOW), NOW);
+check('goal set on the milestone', r.draft.milestones.find((m) => m.title === 'vinyl drop')!.goalCents, 80000);
+check('goal reply mentions the amount', r.reply.includes('$800'), true);
+draft = r.draft;
+check('sub-$1 goal refused', applyCommand(draft, { kind: 'set_goal', ref: { title: 'vinyl drop' }, cents: 50 }, NOW).ok, false);
+check('$2M goal refused', applyCommand(draft, { kind: 'set_goal', ref: { title: 'vinyl drop' }, cents: 200_000_000 }, NOW).ok, false);
+r = applyCommand(draft, parseUtterance('unfund vinyl drop', NOW), NOW);
+check('unfund clears it', r.draft.milestones.find((m) => m.title === 'vinyl drop')!.goalCents, null);
+check('other milestones stay unfunded by default', draft.milestones.every((m) => m.title === 'vinyl drop' || m.goalCents === null), true);
 
 /* ── Wire payload ──────────────────────────────────────────────────── */
 console.log('\nBatch payload:');

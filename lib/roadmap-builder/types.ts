@@ -28,6 +28,11 @@ export interface DraftMilestone {
   /** True once the user explicitly set the date — timeline redistribution
    * (set_timeframe) must never clobber a pinned date. */
   datePinned: boolean;
+  /** Optional funding goal, in integer cents (null = no goal — the default;
+   * a milestone without one renders exactly as it always has). Goals save
+   * through /api/funding/goals AFTER the roadmap exists, never in the batch. */
+  goalCents: number | null;
+  goalBlurb: string | null;
 }
 
 export type DraftProject =
@@ -59,6 +64,7 @@ export type BuilderCommand =
   | { kind: 'rename_milestone'; ref: MilestoneRef; title: string }
   | { kind: 'set_milestone_date'; ref: MilestoneRef; start: ParsedDate | null; end: ParsedDate | null }
   | { kind: 'set_status'; ref: MilestoneRef; status: MilestoneStatus }
+  | { kind: 'set_goal'; ref: MilestoneRef; cents: number | null; blurb?: string | null }
   | { kind: 'move_milestone'; ref: MilestoneRef; to: number | 'first' | 'last' | 'up' | 'down' }
   | { kind: 'set_era_title'; title: string }
   | { kind: 'set_era_description'; text: string }
@@ -70,3 +76,8 @@ export type BuilderCommand =
 export const MAX_COUNTABLE_REPEATS = 12;
 export const MAX_DRAFT_MILESTONES = 20;
 export const MAX_BATCH_MILESTONES = 30;
+
+/* Goal bounds — mirror /api/funding/goals ($1 floor, $1M ceiling) so the
+ * chat catches a bad amount before the round trip; the route re-validates. */
+export const MIN_GOAL_CENTS = 100;
+export const MAX_GOAL_CENTS = 100_000_000;

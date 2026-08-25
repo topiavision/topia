@@ -130,6 +130,8 @@ export default function InProcessLayer({
             projects={creatableProjects}
             projectScope={projectScope}
             privyId={privyId}
+            canFund={canEdit}
+            accessToken={accessToken}
             onClose={() => setBuilding(false)}
             onCreated={handleBuilt}
           />
@@ -213,6 +215,8 @@ export default function InProcessLayer({
           projects={creatableProjects}
           projectScope={projectScope}
           privyId={privyId}
+          canFund={canEdit}
+          accessToken={accessToken}
           onClose={() => setBuilding(false)}
           onCreated={handleBuilt}
         />

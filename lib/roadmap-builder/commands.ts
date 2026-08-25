@@ -7,9 +7,21 @@
 import type {
   BuilderCommand, DraftMilestone, DraftRoadmap, MilestoneRef, MilestoneStatus, ParsedDate,
 } from './types';
-import { MAX_DRAFT_MILESTONES } from './types';
+import { MAX_DRAFT_MILESTONES, MIN_GOAL_CENTS, MAX_GOAL_CENTS } from './types';
 import { formatEraDate } from '../eraDates';
 import { parseNaturalDate, parseDateRange, distributeDates, isBefore } from './dates';
+
+/* "$500" / "1,200" / "1.5k" → integer cents, or null when it isn't money. */
+export function parseDollars(raw: string): number | null {
+  const m = raw.trim().match(/^\$?\s*([\d,]+(?:\.\d+)?)\s*(k)?$/i);
+  if (!m) return null;
+  const n = Number(m[1].replace(/,/g, ''));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * (m[2] ? 1000 : 1) * 100);
+}
+
+export const usdShort = (cents: number) =>
+  `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: cents % 100 === 0 ? 0 : 2 })}`;
 
 /* ── Parsing ───────────────────────────────────────────────────────── */
 
@@ -40,8 +52,33 @@ export function parseUtterance(text: string, now: Date): BuilderCommand {
   const t = raw.toLowerCase();
   if (!raw) return { kind: 'unknown', raw };
 
+  // Funding — MUST outrank the add-milestone pattern, or "add a $500 goal to
+  // mixing" births a milestone literally titled "$500 goal to mixing".
+  // "add a $500 goal to mixing" / "put a 1k goal on the shoot"
+  let m = raw.match(/^(?:add|put|set)\s+(?:a\s+)?(\$?[\d,.]+k?)\s+(?:funding\s+)?goal\s+(?:to|on|for)\s+(.+)$/i);
+  if (m) {
+    const cents = parseDollars(m[1]);
+    if (cents !== null) return { kind: 'set_goal', ref: { title: stripArticle(m[2]) }, cents };
+  }
+  // "fund mixing $500" / "fund the shoot with 1.5k"
+  m = raw.match(/^fund\s+(.+?)\s+(?:with\s+|at\s+)?(\$?[\d,.]+k?)$/i);
+  if (m) {
+    const cents = parseDollars(m[2]);
+    if (cents !== null) return { kind: 'set_goal', ref: { title: stripArticle(m[1]) }, cents };
+  }
+  // "$500 for mixing"
+  m = raw.match(/^(\$[\d,.]+k?)\s+(?:for|on)\s+(.+)$/i);
+  if (m) {
+    const cents = parseDollars(m[1]);
+    if (cents !== null) return { kind: 'set_goal', ref: { title: stripArticle(m[2]) }, cents };
+  }
+  // "remove the goal on mixing" / "clear the goal from the shoot" / "unfund mixing"
+  m = raw.match(/^(?:remove|clear|drop)\s+(?:the\s+)?(?:funding\s+)?goal\s+(?:on|from|for)\s+(.+)$/i);
+  if (!m) m = raw.match(/^unfund\s+(.+)$/i);
+  if (m) return { kind: 'set_goal', ref: { title: stripArticle(m[1]) }, cents: null };
+
   // add: "add a milestone called X", "add vinyl drop in March", "new milestone: X"
-  let m = raw.match(/^(?:add|new)\s+(?:a\s+)?(?:milestone\s*[:,]?\s*)?(?:called\s+|named\s+)?(.+)$/i);
+  m = raw.match(/^(?:add|new)\s+(?:a\s+)?(?:milestone\s*[:,]?\s*)?(?:called\s+|named\s+)?(.+)$/i);
   if (m) {
     const { title, start } = splitTrailingDate(stripArticle(m[1]), now);
     if (title) return { kind: 'add_milestone', title, start };
@@ -182,6 +219,7 @@ export function applyCommand(draft: DraftRoadmap, cmd: BuilderCommand, now: Date
       const ms: DraftMilestone = {
         key: freshKey(draft), title: cmd.title, description: null,
         start: cmd.start, end: null, status: 'upcoming', datePinned: !!cmd.start,
+        goalCents: null, goalBlurb: null,
       };
       const milestones = cmd.start ? sortByDate([...draft.milestones, ms]) : [...draft.milestones, ms];
       return {
@@ -234,6 +272,26 @@ export function applyCommand(draft: DraftRoadmap, cmd: BuilderCommand, now: Date
       });
       const word = { done: 'done ✓', now: 'in motion', upcoming: 'upcoming', paused: 'paused' }[cmd.status];
       return { draft: { ...draft, milestones }, ok: true, reply: `“${draft.milestones[r.index].title}” marked ${word}.` };
+    }
+    case 'set_goal': {
+      const r = matchMilestone(cmd.ref, draft.milestones);
+      if (!r.ok) return { draft, ok: false, reply: ambiguousReply(r.candidates, draft.milestones, 'title' in cmd.ref ? cmd.ref.title : undefined) };
+      if (cmd.cents !== null && cmd.cents < MIN_GOAL_CENTS) {
+        return { draft, ok: false, reply: `A goal has to be at least $1.` };
+      }
+      if (cmd.cents !== null && cmd.cents > MAX_GOAL_CENTS) {
+        return { draft, ok: false, reply: `Goals top out at $1,000,000.` };
+      }
+      const target = draft.milestones[r.index];
+      const milestones = draft.milestones.map((m, i) => (i === r.index
+        ? { ...m, goalCents: cmd.cents, goalBlurb: cmd.blurb !== undefined ? cmd.blurb : m.goalBlurb }
+        : m));
+      return {
+        draft: { ...draft, milestones }, ok: true,
+        reply: cmd.cents === null
+          ? `Cleared the goal on “${target.title}”.`
+          : `Set a ${usdShort(cmd.cents)} goal on “${target.title}” — it goes live with the roadmap, and backers see exactly what it pays for if you add a line in its editor.`,
+      };
     }
     case 'move_milestone': {
       const r = matchMilestone(cmd.ref, draft.milestones);

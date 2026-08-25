@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { BuilderCommand, DraftRoadmap, TemplateId } from '@/lib/roadmap-builder/types';
-import { applyCommand, draftToBatchPayload, matchMilestone, parseUtterance } from '@/lib/roadmap-builder/commands';
+import { applyCommand, draftToBatchPayload, matchMilestone, parseUtterance, parseDollars } from '@/lib/roadmap-builder/commands';
 import { parseSeed } from '@/lib/roadmap-builder/parse';
 import { TEMPLATES, instantiate, templateById } from '@/lib/roadmap-builder/templates';
 import { addMonths } from '@/lib/roadmap-builder/dates';
 import { EraDateField, type Precision } from '../../InProcessFields';
 import { ORANGE } from '../constants';
-import type { EraView, ProjectOption } from '../types';
+import type { EraMilestoneView, EraView, ProjectOption } from '../types';
 import { COPY, CHIP, type Stage } from './script';
 import { ChatPane, type ChatMessage, type Chip } from './ChatPane';
 import { DraftCanvas } from './DraftCanvas';
@@ -26,11 +26,16 @@ import { DraftCanvas } from './DraftCanvas';
 let msgId = 0;
 const nextId = () => `bm${++msgId}`;
 
-export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClose, onCreated }: {
+export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFund, accessToken, onClose, onCreated }: {
   worldId: string;
   projects: ProjectOption[];
   projectScope?: string;
   privyId: string;
+  /** Show funding affordances (same bar as MilestoneModal — the server
+   * enforces the real grant either way). */
+  canFund?: boolean;
+  /** Privy access token — goal writes are bearer-verified. */
+  accessToken?: string | null;
   onClose: () => void;
   onCreated: (era: EraView) => void;
 }) {
@@ -62,7 +67,12 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
   const [saving, setSaving] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [pendingIntent, setPendingIntent] = useState<null | { type: 'add' } | { type: 'rename'; index: number }>(null);
+  const [pendingIntent, setPendingIntent] = useState<null | { type: 'add' } | { type: 'rename'; index: number } | { type: 'goal'; index: number }>(null);
+  // Replies in flight — drives the typing indicator.
+  const [pendingBots, setPendingBots] = useState(0);
+  // Stashed after a save whose funding goals partially failed, so the
+  // "take me to it" chip can still land the user on their new roadmap.
+  const createdEra = useRef<EraView | null>(null);
 
   const draftRef = useRef<DraftRoadmap | null>(null);
   const setDraft = useCallback((d: DraftRoadmap | null) => {
@@ -84,9 +94,14 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
   const pushUser = useCallback((text: string) => {
     setMessages((m) => [...m, { id: nextId(), role: 'user', text }]);
   }, []);
-  // Bot lines land on a small stagger so turns read as conversation.
-  const pushBot = useCallback((text: string, delay = 260) => {
-    const t = setTimeout(() => setMessages((m) => [...m, { id: nextId(), role: 'bot', text }]), delay);
+  // Bot lines land on a beat with typing dots first, so turns read as a
+  // being composing a thought rather than a form validating.
+  const pushBot = useCallback((text: string, delay = 550) => {
+    setPendingBots((n) => n + 1);
+    const t = setTimeout(() => {
+      setPendingBots((n) => Math.max(0, n - 1));
+      setMessages((m) => [...m, { id: nextId(), role: 'bot', text }]);
+    }, delay);
     timers.current.push(t);
   }, []);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
@@ -100,8 +115,9 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
     { label: CHIP.changeTimeline, t: 'timeline' },
     { label: CHIP.markDone, t: 'mark_done' },
     { label: CHIP.rename, t: 'rename' },
+    ...(canFund ? [{ label: CHIP.fund, t: 'fund' as const }] : []),
     { label: CHIP.save, t: 'save', accent: true },
-  ], []);
+  ], [canFund]);
 
   /* ── Portal mount gate (SSR-safe) ─────────────────────────────────── */
   useEffect(() => { setMounted(true); }, []);
@@ -227,7 +243,62 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.era) {
-        onCreated(data.era as EraView);
+        const era = data.era as EraView;
+
+        /* Funding goals ride AFTER the roadmap exists — same shape as
+         * MilestoneModal: bearer-verified, best-effort, and a failed goal
+         * never un-saves the roadmap. Draft milestones map onto created rows
+         * by sortOrder (the batch route inserts them in draft order). */
+        const funded = d.milestones
+          .map((m, i) => ({ m, i }))
+          .filter(({ m }) => m.goalCents != null || (m.goalBlurb ?? '').trim() !== '');
+        let failures = 0;
+        let firstError: string | null = null;
+        if (canFund && funded.length > 0) {
+          const bySort = new Map(era.milestones.map((row) => {
+            const sort = (row as EraMilestoneView & { sortOrder?: number }).sortOrder;
+            return [sort ?? -1, row.id] as const;
+          }));
+          for (const { m, i } of funded) {
+            const milestoneId = bySort.get(i);
+            if (!milestoneId) { failures++; continue; }
+            try {
+              const gRes = await fetch('/api/funding/goals', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+                },
+                body: JSON.stringify({
+                  privyId,
+                  targetType: 'milestone',
+                  targetId: milestoneId,
+                  goalCents: m.goalCents,
+                  blurb: (m.goalBlurb ?? '').trim() || null,
+                }),
+              });
+              if (!gRes.ok) {
+                failures++;
+                if (!firstError) {
+                  const gd = await gRes.json().catch(() => ({}));
+                  firstError = typeof gd?.error === 'string' ? gd.error : null;
+                }
+              }
+            } catch { failures++; }
+          }
+        }
+
+        if (failures > 0) {
+          // The roadmap is real; only some goals aren't. Say so and let the
+          // user land on it rather than pretending the save failed.
+          createdEra.current = era;
+          setSaving(false);
+          setStage('done');
+          pushBot(COPY.savedPartialGoals(failures, firstError), 200);
+          setChips([{ label: CHIP.finishPartial, t: 'finish_partial' }]);
+          return;
+        }
+        onCreated(era);
         return;
       }
       setSaving(false);
@@ -240,7 +311,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
       pushBot(COPY.saveFailed(null), 200);
       setChips([{ label: CHIP.tryAgain, t: 'try_again' }, { label: CHIP.keepEditing, t: 'keep_editing' }]);
     }
-  }, [saving, worldId, privyId, onCreated, pushBot]);
+  }, [saving, worldId, privyId, canFund, accessToken, onCreated, pushBot]);
 
   /* ── Input handling ───────────────────────────────────────────────── */
   const handleText = useCallback((raw: string) => {
@@ -273,6 +344,16 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
       const idx = pendingIntent.index;
       setPendingIntent(null);
       dispatch({ kind: 'rename_milestone', ref: { index: idx }, title: text });
+      return;
+    }
+    if (pendingIntent?.type === 'goal') {
+      const cents = parseDollars(text);
+      if (cents === null) {
+        pushBot(COPY.fundAmountRetry);
+        return; // keep the intent — they'll try another amount
+      }
+      setPendingIntent(null);
+      dispatch({ kind: 'set_goal', ref: { index: pendingIntent.index }, cents });
       return;
     }
     const cmd = parseUtterance(text, new Date());
@@ -362,10 +443,24 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
           { label: CHIP.cancel, t: 'cancel' },
         ]);
         break;
+      case 'fund':
+        pushBot(COPY.fundPickPrompt);
+        setChips([
+          ...(draftRef.current?.milestones ?? []).slice(0, 8).map((m, i) => ({
+            label: m.goalCents != null ? `${m.title} ·$` : m.title,
+            t: 'pick_ms' as const, index: i, goal: true,
+          })),
+          { label: CHIP.cancel, t: 'cancel' },
+        ]);
+        break;
       case 'pick_ms':
         if (chip.rename) {
           setPendingIntent({ type: 'rename', index: chip.index });
           pushBot(COPY.renameTextPrompt(draftRef.current?.milestones[chip.index]?.title ?? ''));
+          setChips([{ label: CHIP.cancel, t: 'cancel' }]);
+        } else if (chip.goal) {
+          setPendingIntent({ type: 'goal', index: chip.index });
+          pushBot(COPY.fundAmountPrompt(draftRef.current?.milestones[chip.index]?.title ?? ''));
           setChips([{ label: CHIP.cancel, t: 'cancel' }]);
         } else if (chip.cmd) {
           dispatch(chip.cmd);
@@ -375,13 +470,16 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
       case 'try_again':
         void save();
         break;
+      case 'finish_partial':
+        if (createdEra.current) onCreated(createdEra.current);
+        break;
       case 'keep_editing':
       case 'cancel':
         setPendingIntent(null);
         setChips(refineChips());
         break;
     }
-  }, [stage, pushUser, pushBot, templateChips, seedDraft, dispatch, advanceFromSeed, enterRefine, refineChips, save, setDraft]);
+  }, [stage, pushUser, pushBot, templateChips, seedDraft, dispatch, advanceFromSeed, enterRefine, refineChips, save, setDraft, onCreated]);
 
   // Silent edits from the canvas tap-editor — same reducer, no chat noise.
   const handleCanvasCommand = useCallback((cmd: BuilderCommand) => {
@@ -390,9 +488,12 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
 
   const requestClose = useCallback(() => {
     if (saving) return;
+    // Past the partial-goals notice the roadmap is already real — closing
+    // means "take me to it", never "discard".
+    if (createdEra.current) { onCreated(createdEra.current); return; }
     if (draftRef.current && !window.confirm('Discard this draft?')) return;
     onClose();
-  }, [saving, onClose]);
+  }, [saving, onClose, onCreated]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose(); };
@@ -421,7 +522,9 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
 
   const header = (
     <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10 shrink-0">
-      <span className="font-mono text-[10px] font-bold uppercase tracking-[3px]" style={{ color: ORANGE }}>✦ Roadmap Builder</span>
+      <span className="font-mono text-[10px] font-bold uppercase tracking-[3px]" style={{ color: ORANGE }}>
+        <span className="ipb-orb">✦</span> Roadmap Builder
+      </span>
       <button onClick={requestClose} aria-label="Close" className="font-mono text-[16px] leading-none text-ink/50 hover:text-ink cursor-pointer bg-transparent border-none px-1">×</button>
     </div>
   );
@@ -432,7 +535,8 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
       chips={chips}
       onChip={handleChip}
       onSubmit={handleText}
-      disabled={stage === 'saving'}
+      disabled={stage === 'saving' || stage === 'done'}
+      typing={pendingBots > 0}
       extra={datePicker}
     />
   );
@@ -442,13 +546,14 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
       selectedKey={selectedKey}
       onSelect={setSelectedKey}
       onCommand={handleCanvasCommand}
+      canFund={canFund}
     />
   );
 
   const content = (
     <>
       {/* Backdrop — lvh so a late keyboard frame never reveals the page. */}
-      <div className="fixed inset-0 z-[2300] bg-black/70" style={{ height: '100lvh' }} onClick={requestClose} />
+      <div className="fixed inset-0 z-[2300] bg-black/70 backdrop-blur-[2px]" style={{ height: '100lvh' }} onClick={requestClose} />
       {/* Mobile: full-bleed takeover. Plain flex column — the browser handles
        * the keyboard (CLAUDE.md rule 3); inputs are 16px so iOS won't zoom. */}
       <div className="sm:hidden fixed inset-0 z-[2301] flex flex-col bg-[var(--page-bg)]" style={{ height: '100dvh', paddingTop: 'var(--safe-top, 0px)' }}>
@@ -460,7 +565,10 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, onClo
       </div>
       {/* Desktop: centered two-pane card — chat left, canvas right. */}
       <div className="hidden sm:flex fixed inset-0 z-[2301] items-center justify-center p-6 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-5xl h-[min(720px,88lvh)] grid grid-cols-[minmax(320px,1fr)_1.2fr] bg-[var(--page-bg)] border border-ink/10 rounded-2xl overflow-hidden shadow-2xl">
+        <div
+          className="takeover-card pointer-events-auto w-full max-w-5xl h-[min(720px,88lvh)] grid grid-cols-[minmax(320px,1fr)_1.2fr] bg-[var(--page-bg)] border border-ink/10 rounded-2xl overflow-hidden"
+          style={{ boxShadow: `0 24px 80px rgba(0,0,0,0.5), 0 0 48px ${'color-mix(in srgb, var(--orange) 10%, transparent)'}` }}
+        >
           <div className="flex flex-col min-h-0 border-r border-ink/10">
             {header}
             <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
