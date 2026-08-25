@@ -32,6 +32,12 @@ export interface UserProfile {
   socialSpotify: string | null;
   socialLinkedin: string | null;
   socialSubstack: string | null;
+  /* Returned by /api/auth/profile (full-row select) but historically
+   * untyped here — the Profile Assistant needs them. */
+  socialFarcaster?: string | null;
+  pronouns?: string | null;
+  stackTitle?: string | null;
+  customLinks?: { label: string; url: string }[] | null;
 }
 
 interface CachedProfile {
@@ -73,6 +79,13 @@ function writeCache(entry: CachedProfile | null) {
   } catch {
     // storage blocked/full — the cache is best-effort
   }
+}
+
+/** Drop the cached profile so the next mount refetches — call after any
+ * out-of-band profile write (e.g. the Profile Assistant's /api/auth/sync
+ * saves). Without this every mounted useUserProfile keeps serving stale. */
+export function invalidateProfileCache() {
+  writeCache(null);
 }
 
 function fetchProfile(privyId: string): Promise<CachedProfile | null> {

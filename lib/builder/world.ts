@@ -94,6 +94,7 @@ export type WorldManageCommand =
   | { kind: 'remove_tool'; name: string }
   | { kind: 'set_social'; key: WorldSocialKey; url: string }
   | { kind: 'want_upload' }
+  | { kind: 'handoff_members'; seed: string }
   | { kind: 'immutable'; field: 'title' | 'category' | 'country' }
   | { kind: 'handoff_project'; seed: string }
   | { kind: 'handoff_roadmap'; seed: string }
@@ -114,6 +115,9 @@ export function parseWorldManageUtterance(text: string): WorldManageCommand {
   }
   if (/\broadmap\b|\bmilestone\b|in.?process/i.test(raw)) {
     return { kind: 'handoff_roadmap', seed: raw };
+  }
+  if (/\b(?:invite|member|collaborator|add\s+\S+\s+to\s+the\s+(?:world|team))\b/i.test(raw)) {
+    return { kind: 'handoff_members', seed: raw };
   }
 
   if (/\b(?:cover|header|image|photo|banner)\b/i.test(raw) && !/^https?:/i.test(raw)) {

@@ -8,7 +8,7 @@
 let knownUnconfigured = false;
 
 export async function llmParse(
-  flow: 'world' | 'project' | 'event',
+  flow: 'world' | 'project' | 'event' | 'profile',
   text: string,
   privyId: string,
 ): Promise<Record<string, unknown> | null> {

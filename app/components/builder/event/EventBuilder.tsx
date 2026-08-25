@@ -29,10 +29,12 @@ type Chip =
   | { label: string; t: 'open_composer'; accent?: boolean }
   | { label: string; t: 'cancel' };
 
-export function EventBuilder({ privyId, seedText, onHandoff, onClose, variant }: {
+export function EventBuilder({ privyId, seedText, onHandoff, onClose, variant, showBack }: {
   privyId: string;
   seedText?: string;
   variant?: 'modal' | 'page';
+  /** Page variant: render the × as a real way back (history back / /events). */
+  showBack?: boolean;
   /** The page takes over from here: render EventComposer with these props. */
   onHandoff: (composerProps: ReturnType<typeof draftToComposer>) => void;
   onClose: () => void;
@@ -243,14 +245,20 @@ export function EventBuilder({ privyId, seedText, onHandoff, onClose, variant }:
 
   const requestClose = useCallback(() => {
     if (draftRef.current?.eventName && !window.confirm('Discard this draft?')) return;
+    if (variant === 'page' && showBack) {
+      // Landed here from the palette/nav — × means "take me back".
+      if (window.history.length > 1) window.history.back();
+      else window.location.assign('/events');
+      return;
+    }
     onClose();
-  }, [onClose]);
+  }, [onClose, variant, showBack]);
 
   return (
     <BuilderShell
       title="Event Builder"
       variant={variant}
-      showClose={variant !== 'page'}
+      showClose={variant !== 'page' || showBack}
       headerLink={{ label: 'Use the form instead', onClick: onClose }}
       onRequestClose={requestClose}
       chat={

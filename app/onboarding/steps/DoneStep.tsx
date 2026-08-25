@@ -109,6 +109,13 @@ export default function DoneStep({ config, name, username, avatarUrl, roleTags, 
             <div style={{ opacity: 0, animation: 'fadeUp 0.7s ease forwards' }}>
               <div className="mt-10 flex items-center justify-center gap-4">
                 {username && (
+                  <>
+                  <Link
+                    href="/profile?assistant=1"
+                    className="font-mono text-[11px] uppercase tracking-[2px] bg-lime text-obsidian font-bold px-3 py-1.5 rounded-sm no-underline hover:opacity-90 transition"
+                  >
+                    ✦ Finish your passport
+                  </Link>
                   <Link
                     href={`/profile/${username}`}
                     className={`font-mono font-bold text-[13px] md:text-[15px] uppercase tracking-[2px] ${accentBg} ${accentTextOn} px-7 py-3.5 rounded-md no-underline transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.03]`}
@@ -116,6 +123,7 @@ export default function DoneStep({ config, name, username, avatarUrl, roleTags, 
                   >
                     view your profile →
                   </Link>
+                  </>
                 )}
                 <Link
                   href="/home"

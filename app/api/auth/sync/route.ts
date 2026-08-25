@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyPrivyIdentity } from '@/lib/auth/privyServer';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -27,6 +28,23 @@ export async function POST(request: NextRequest) {
 
     if (!privyId) {
       return NextResponse.json({ error: 'Missing privyId' }, { status: 400 });
+    }
+
+    /* Optional Bearer verification (conventions-to-adopt in CLAUDE.md):
+     * when a token is provided AND Privy is configured, it must belong to
+     * the privyId being patched — otherwise 401. Token-less calls keep the
+     * legacy body-privyId path (RSVP/onboarding callers) with a loud log,
+     * so nothing breaks while new callers (the Profile Assistant) opt in. */
+    const authHeader = request.headers.get('authorization');
+    const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (bearer) {
+      const identity = await verifyPrivyIdentity(bearer);
+      if (identity.configured && (!identity.ok || identity.did !== privyId)) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
+      if (!identity.configured) console.warn('[auth-sync] PRIVY_APP_SECRET unset — Bearer token not verified');
+    } else {
+      console.warn('[auth-sync] token-less profile write for', String(privyId).slice(0, 24));
     }
 
     const email         = body.email;
