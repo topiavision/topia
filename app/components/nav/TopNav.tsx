@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import LoginButton from '../LoginButton';
@@ -8,49 +7,31 @@ import NotificationBell from '../NotificationBell';
 import MessagesNavIcon from '../MessagesNavIcon';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { useLiveEvent } from '../../hooks/useLiveEvent';
+import { NAV_DESTINATIONS } from '@/lib/navItems';
 
-type NavItem = {
-  label: string;
-  href?: string;
-  comingSoon?: boolean;
-  children?: { href: string; label: string }[];
-};
-
-const NAV_LINKS: NavItem[] = [
-  { href: '/profile', label: 'Passport' },
-  { href: '/tv', label: 'Topia TV' },
-  { href: '/events', label: 'Events' },
-  { href: '/worlds', label: 'Worlds' },
-  {
-    label: 'Resources',
-    children: [
-      { href: '/resources/tools', label: 'Tools' },
-      { href: '/resources/grants', label: 'Grants' },
-    ],
-  },
-  { href: '#', label: 'Builder', comingSoon: true },
-  { href: '#', label: 'Catalysts', comingSoon: true },
-];
-
-const STATIC_LINKS = [
-  { href: '/about', label: 'About' },
-  { href: '/contact', label: 'Contact' },
-];
-
+/* Desktop nav — five destinations inline, no dropdown.
+ *
+ * The old "Menu ▾" hid every destination behind a click, listed two dead
+ * "coming soon" items, and had drifted from the mobile menu's copy of the
+ * same array. Destinations now come from lib/navItems.ts (shared with
+ * mobile), sit in the bar where a first-time visitor can see the shape of the
+ * platform at a glance, and mark the current section with the same lime
+ * underline the in-page tabs use. Tools/grants/about live in the mobile menu,
+ * the footer and ⌘K — secondary, not chrome.
+ *
+ * Messages, notifications and auth stay exactly where they were.
+ */
 export default function TopNav({ onOpenMessages }: { onOpenMessages: () => void }) {
-  const [menuOpen, setMenuOpen] = useState(false);
   const { profile, authenticated, ready } = useUserProfile();
   const pathname = usePathname();
-  // Passport routes to the viewer's own profile (their passport).
-  const passportHref = profile?.username ? `/profile/${profile.username}` : '/profile';
   // Desktop's live-event door — same lookup as the mobile chip. Hidden while
   // already in Event Mode (it would link to itself).
   const liveEvent = useLiveEvent(authenticated ? profile?.privyId : undefined, ready);
   const showLiveChip = !!liveEvent && !pathname.endsWith('/live');
 
   // Current-page marker: exact match or a sub-route of the item.
-  const isActive = (href?: string) =>
-    !!href && href !== '#' && href !== '/' && (pathname === href || pathname.startsWith(`${href}/`));
+  const isActive = (href: string) =>
+    href !== '/' && (pathname === href || pathname.startsWith(`${href}/`));
 
   return (
     <nav
@@ -60,17 +41,41 @@ export default function TopNav({ onOpenMessages }: { onOpenMessages: () => void 
         borderColor: 'var(--nav-border)',
       }}
     >
-      {/* Logo */}
-      <Link
-        href="/"
-        className="font-basement font-black text-sm tracking-[4px] uppercase no-underline"
-        style={{ color: 'var(--page-text)' }}
-      >
-        TOPIA<span style={{ color: 'var(--accent, #e4fe52)' }}>.</span>
-      </Link>
+      {/* Logo + destinations */}
+      <div className="flex items-center gap-7 min-w-0">
+        <Link
+          href="/"
+          className="font-basement font-black text-sm tracking-[4px] uppercase no-underline shrink-0"
+          style={{ color: 'var(--page-text)' }}
+        >
+          TOPIA<span style={{ color: 'var(--accent, #e4fe52)' }}>.</span>
+        </Link>
+
+        <div className="flex items-center gap-5">
+          {NAV_DESTINATIONS.filter((d) => !d.authOnly || authenticated).map((d) => {
+            const active = isActive(d.href);
+            return (
+              <Link
+                key={d.href}
+                href={d.href}
+                aria-current={active ? 'page' : undefined}
+                className={`font-mono text-[12px] tracking-[1.5px] uppercase no-underline py-[19px] border-b-2 transition-opacity ${
+                  active ? 'opacity-100 font-bold' : 'opacity-50 hover:opacity-100'
+                }`}
+                style={{
+                  color: 'var(--page-text)',
+                  borderBottomColor: active ? 'var(--accent, #e4fe52)' : 'transparent',
+                }}
+              >
+                {d.label}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 shrink-0">
         {showLiveChip && liveEvent && (
           <Link
             href={`/events/${liveEvent.slug}/live`}
@@ -89,8 +94,8 @@ export default function TopNav({ onOpenMessages }: { onOpenMessages: () => void 
             </span>
           </Link>
         )}
-        {/* Search — opens the ⌘K palette. Search had NO desktop entry point
-            at all before this (it was mobile-pill-only). */}
+
+        {/* Search — opens the ⌘K palette. */}
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('topia:open-cmdk'))}
           aria-label="Search (⌘K)"
@@ -101,96 +106,6 @@ export default function TopNav({ onOpenMessages }: { onOpenMessages: () => void 
           <span className="font-mono text-[11px] tracking-wider hidden lg:inline" style={{ opacity: 0.6 }}>Search</span>
           <kbd className="font-mono text-[9px] tracking-[1px] px-1 py-px rounded border leading-none" style={{ borderColor: 'var(--nav-border)', opacity: 0.55 }}>⌘K</kbd>
         </button>
-        {/* Menu dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            className="font-mono font-normal text-[13px] tracking-wider uppercase opacity-50 hover:opacity-100 transition-opacity duration-300 bg-transparent border-none cursor-pointer flex items-center gap-2"
-            style={{ color: 'var(--page-text)' }}
-          >
-            Menu{' '}
-            <span
-              className={`transition-transform duration-200 inline-block ${menuOpen ? 'rotate-180' : ''}`}
-            >
-              ▾
-            </span>
-          </button>
-
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-[998]" onClick={() => setMenuOpen(false)} />
-              <div
-                className="absolute top-full right-0 mt-2 backdrop-blur-xl rounded-lg py-2 min-w-[200px] z-[999]"
-                style={{
-                  backgroundColor: 'var(--nav-bg)',
-                  border: '1px solid var(--nav-border)',
-                }}
-              >
-                {NAV_LINKS.map((item) =>
-                  item.children ? (
-                    <div key={item.label} className="mt-1">
-                      <div
-                        className="px-4 pt-3 pb-1 font-mono text-[11px] tracking-[2px] uppercase opacity-30"
-                        style={{ color: 'var(--page-text)' }}
-                      >
-                        {item.label}
-                      </div>
-                      {item.children.map((child) => (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          onClick={() => setMenuOpen(false)}
-                          aria-current={isActive(child.href) ? 'page' : undefined}
-                          className={`flex items-center justify-between pl-7 pr-4 py-2.5 font-mono text-[13px] tracking-wider uppercase transition-all duration-200 no-underline ${isActive(child.href) ? 'opacity-100' : 'opacity-50 hover:opacity-100'}`}
-                          style={{ color: 'var(--page-text)' }}
-                        >
-                          <span>{child.label}</span>
-                          {isActive(child.href) && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent, #e4fe52)' }} />}
-                        </Link>
-                      ))}
-                    </div>
-                  ) : item.comingSoon ? (
-                    <div
-                      key={item.label}
-                      className="flex items-center justify-between px-4 py-3 font-mono text-[13px] tracking-wider uppercase opacity-30 cursor-default"
-                      style={{ color: 'var(--page-text)' }}
-                    >
-                      <span>{item.label}</span>
-                      <span className="text-[9px] tracking-[1px] opacity-70">Soon</span>
-                    </div>
-                  ) : (
-                    <Link
-                      key={item.href}
-                      href={item.label === 'Passport' ? passportHref : item.href!}
-                      onClick={() => setMenuOpen(false)}
-                      aria-current={isActive(item.label === 'Passport' ? '/profile' : item.href) ? 'page' : undefined}
-                      className={`flex items-center justify-between px-4 py-3 font-mono text-[13px] tracking-wider uppercase transition-all duration-200 no-underline ${isActive(item.label === 'Passport' ? '/profile' : item.href) ? 'opacity-100' : 'opacity-50 hover:opacity-100'}`}
-                      style={{ color: 'var(--page-text)' }}
-                    >
-                      <span>{item.label}</span>
-                      {isActive(item.label === 'Passport' ? '/profile' : item.href) && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent, #e4fe52)' }} />}
-                    </Link>
-                  )
-                )}
-                <div className="border-t mt-1 pt-1" style={{ borderColor: 'var(--nav-border)' }}>
-                  {STATIC_LINKS.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      onClick={() => setMenuOpen(false)}
-                      className="block px-4 py-3 font-mono text-[13px] tracking-wider uppercase opacity-30 hover:opacity-60 transition-all duration-200 no-underline"
-                      style={{ color: 'var(--page-text)' }}
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
 
         <MessagesNavIcon onClick={onOpenMessages} />
         <NotificationBell />

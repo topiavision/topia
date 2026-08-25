@@ -4,34 +4,12 @@ import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 
-type NavItem = {
-  label: string;
-  href?: string;
-  comingSoon?: boolean;
-  children?: { href: string; label: string }[];
-};
+import { NAV_DESTINATIONS, SECONDARY_LINKS } from '@/lib/navItems';
 
-const NAV_LINKS: NavItem[] = [
-  { href: '/profile', label: 'Passport' },
-  { href: '/tv', label: 'Topia TV' },
-  { href: '/events', label: 'Events' },
-  { href: '/worlds', label: 'Worlds' },
-  {
-    label: 'Resources',
-    children: [
-      { href: '/resources/tools', label: 'Tools' },
-      { href: '/resources/grants', label: 'Grants' },
-    ],
-  },
-  { href: '#', label: 'Builder', comingSoon: true },
-  { href: '#', label: 'Catalysts', comingSoon: true },
-  { href: '/dashboard', label: 'Dashboard' },
-];
-
-const STATIC_LINKS = [
-  { href: '/about', label: 'About' },
-  { href: '/contact', label: 'Contact' },
-];
+/* Destinations and secondary links come from lib/navItems.ts — the SAME
+ * source the desktop nav reads, so the two can never drift again (they
+ * already had: this file carried Dashboard, desktop didn't). The dead
+ * "coming soon" rows are gone with the duplication. */
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -83,39 +61,20 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
 
       {/* Links — scrollable so they never push the auth footer off-screen */}
       <nav className="flex-1 overflow-y-auto px-6 py-4" style={{ color: 'var(--page-text)' }}>
-        {NAV_LINKS.map((item) =>
-          item.children ? (
-            <div key={item.label} className="py-2">
-              <span className="font-mono text-[11px] tracking-[2px] uppercase opacity-30 block mb-0.5">
-                {item.label}
-              </span>
-              {item.children.map((child) => (
-                <Link key={child.href} href={child.href} onClick={onClose} className={`${rowClass} pl-4`} style={{ color: 'var(--page-text)' }}>
-                  {child.label}
-                </Link>
-              ))}
-            </div>
-          ) : item.comingSoon ? (
-            <span key={item.label} className={`${rowClass} opacity-25 cursor-default flex items-baseline gap-2`}>
-              {item.label}
-              <span className="font-mono text-[9px] tracking-[1px] opacity-70">Soon</span>
-            </span>
-          ) : (
-            <Link
-              key={item.href}
-              href={item.label === 'Passport' ? passportHref : item.href!}
-              onClick={onClose}
-              className={`${rowClass} font-bold`}
-              style={{ color: 'var(--page-text)' }}
-            >
-              {item.label}
-            </Link>
-          )
+        {NAV_DESTINATIONS.filter((d) => !d.authOnly || authenticated).map((d) => (
+          <Link key={d.href} href={d.href} onClick={onClose} className={`${rowClass} font-bold`} style={{ color: 'var(--page-text)' }}>
+            {d.label}
+          </Link>
+        ))}
+        {authenticated && (
+          <Link href={passportHref} onClick={onClose} className={`${rowClass} font-bold`} style={{ color: 'var(--page-text)' }}>
+            Passport
+          </Link>
         )}
 
         <div className="border-t my-2" style={{ borderColor: 'var(--border-color)' }} />
 
-        {STATIC_LINKS.map((link) => (
+        {SECONDARY_LINKS.map((link) => (
           <Link key={link.href} href={link.href} onClick={onClose} className={`${rowClass} opacity-40`} style={{ color: 'var(--page-text)' }}>
             {link.label}
           </Link>
@@ -167,13 +126,24 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             </div>
           </>
         ) : (
-          <button
-            onClick={() => { login(); onClose(); }}
-            className="w-full font-mono text-[13px] uppercase tracking-[2px] font-bold py-3.5 rounded-md cursor-pointer transition-opacity hover:opacity-90"
-            style={{ backgroundColor: 'var(--accent, #e4fe52)', color: '#1a1a1a', border: 'none' }}
-          >
-            Log in
-          </button>
+          /* Same split as the desktop nav: newcomers scan for "sign up",
+           * returning users for "log in" — Privy's one modal serves both. */
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => { login(); onClose(); }}
+              className="font-mono text-[13px] uppercase tracking-[2px] font-bold py-3.5 rounded-md cursor-pointer transition-opacity hover:opacity-90"
+              style={{ backgroundColor: 'var(--accent, #e4fe52)', color: '#1a1a1a', border: 'none' }}
+            >
+              Sign up
+            </button>
+            <button
+              onClick={() => { login(); onClose(); }}
+              className="font-mono text-[13px] uppercase tracking-[2px] py-3.5 rounded-md cursor-pointer border transition-opacity hover:opacity-70"
+              style={{ color: 'var(--page-text)', borderColor: 'var(--border-color)', background: 'transparent' }}
+            >
+              Log in
+            </button>
+          </div>
         )}
       </div>
     </div>
