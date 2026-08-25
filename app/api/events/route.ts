@@ -344,9 +344,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-    if (user.path === 'catalyst') {
-      return NextResponse.json({ error: 'Catalysts cannot create events' }, { status: 403 });
-    }
+    // Every account can create events — `path` is profile flavor, not a permission.
 
     // Validate host-as-world BEFORE inserting the event, so a rejected world
     // never leaves a stranded event row behind.
@@ -433,9 +431,7 @@ export async function PUT(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-    if (user.path === 'catalyst') {
-      return NextResponse.json({ error: 'Catalysts cannot edit events' }, { status: 403 });
-    }
+    // Edit rights come from the host row below — `path` plays no part.
 
     const [host] = await db.select({ id: eventHosts.id, role: eventHosts.role }).from(eventHosts)
       .where(and(eq(eventHosts.eventId, data.eventId), eq(eventHosts.userId, user.id)));

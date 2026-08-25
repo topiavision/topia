@@ -21,9 +21,7 @@ export async function PUT(request: Request) {
     if (userResult.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-    if (userResult[0].path === 'catalyst') {
-      return NextResponse.json({ error: 'Catalysts cannot edit worlds' }, { status: 403 });
-    }
+    // Authorization is membership-based (below) — `path` plays no part.
 
     const userId = userResult[0].id;
 

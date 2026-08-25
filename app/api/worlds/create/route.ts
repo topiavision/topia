@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
 
     const [user] = await db.select({ id: users.id, path: users.path }).from(users).where(eq(users.privyId, data.privyId)).limit(1);
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    if (user.path === 'catalyst') return NextResponse.json({ error: 'Catalysts cannot create worlds' }, { status: 403 });
+    // Every account can create a world — `path` is profile flavor, not a
+    // permission. The old catalyst gate silently blocked 100% of new signups.
 
     const slug = await uniqueWorldSlug(data.title);
     const today = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });

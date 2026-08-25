@@ -37,7 +37,6 @@ export default function CreateWorldPage() {
 
   // Catalysts can't create worlds — bounce to the overview.
   useEffect(() => {
-    if (profile?.path === 'catalyst') router.replace('/dashboard');
   }, [profile?.path, router]);
 
   const handleImage = async (file: File | undefined) => {
@@ -86,7 +85,7 @@ export default function CreateWorldPage() {
   // Bot mode: the takeover renders over the dashboard shell; the header band
   // below stays as the page behind it. Wait for Privy so the builder always
   // holds a real privyId.
-  if (mode === 'bot' && profile?.path !== 'catalyst') {
+  if (mode === 'bot') {
     // Hold blank (not the form — no flash) until Privy hands us the user.
     if (!user) return <div className="max-w-2xl" />;
     return (

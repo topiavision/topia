@@ -494,8 +494,10 @@ export default function HomeClient({
             roleTags: u.roleTags ? String(u.roleTags).split(',').map((s: string) => s.trim()).filter(Boolean) : [],
             bio: u.bio ?? '',
           });
-          // Let the page land first — the popup easing in beats it slamming open.
-          timer = setTimeout(() => setCompleteProfileOpen(true), 2500);
+          // No auto-open: the modal used to slam in at 2500ms on top of the
+          // other first-session interruptions. The persistent passport chip
+          // (FrostedPill) is the nudge; the data staged here serves the modal
+          // whenever the user opens it deliberately.
         }
       })
       .catch(() => {});
