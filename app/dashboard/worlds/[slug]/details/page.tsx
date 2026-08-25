@@ -58,7 +58,7 @@ export default function WorldDetailsPage() {
     try {
       // Blob URL, not a base64 data URL — world rows were migrated off base64
       // once already (scripts/migrate-world-images-to-blob.mjs).
-      const url = await resizeAndUploadImage(file, kind === 'header' ? 1600 : 1024);
+      const url = await resizeAndUploadImage(file, kind === 'header' ? 1600 : 1024, privyId);
       if (kind === 'image') setImageUrl(url);
       else setHeaderImageUrl(url);
     } catch (err) {
