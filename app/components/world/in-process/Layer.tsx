@@ -11,6 +11,7 @@ import { Masthead } from './Masthead';
 import { HowThisWorks } from './HowThisWorks';
 import { EraForm } from './EraForm';
 import { EraSection } from './EraSection';
+import { RoadmapBuilder } from './builder/RoadmapBuilder';
 import type { EraView, ProjectOption } from './types';
 import { useFundingGoals } from './funding/useFundingGoals';
 import { FundingReturn } from './funding/FundingReturn';
@@ -55,6 +56,7 @@ export default function InProcessLayer({
   }, [getAccessToken]);
   const privyId = user?.id ?? '';
   const [creating, setCreating] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [canMint, setCanMint] = useState(false);
 
   useEffect(() => {
@@ -75,6 +77,15 @@ export default function InProcessLayer({
   // one project's full roadmap at a time instead of an endless stack.
   // Single-roadmap worlds see no pills — nothing changes for them.
   const [pickedGroup, setPickedGroup] = useState<string | null>(null);
+
+  // The builder saved a whole roadmap in one shot: refetch, and point the
+  // switcher at the new roadmap's group so it's visible immediately even in
+  // multi-project worlds.
+  const handleBuilt = useCallback((era: EraView) => {
+    setBuilding(false);
+    setPickedGroup(era.projectId ?? '__world__');
+    onChanged();
+  }, [onChanged]);
   const groupOrder: string[] = [];
   const byGroup: Record<string, EraView[]> = {};
   for (const e of visible) {
@@ -104,12 +115,25 @@ export default function InProcessLayer({
                 A roadmap tells the story of {projectScope ? 'this project' : 'a project'} in milestones — what&apos;s done,
                 what&apos;s in motion, what&apos;s next. {!projectScope && 'No project yet? You can make one as you go.'}
               </p>
-              <button id="tour-ip-start" onClick={startCreate} className={btnLime}>+ Start a roadmap</button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button onClick={() => setBuilding(true)} className={btnLime}>✦ Build it for me</button>
+                <button id="tour-ip-start" onClick={startCreate} className={btnGhost}>+ Start a roadmap</button>
+              </div>
             </>
           )}
         </div>
         <HowThisWorks canEdit={canEdit} />
         <Tour tourKey="inprocess" privyId={privyId} enabled={canEdit} steps={IP_TOUR} />
+        {building && (
+          <RoadmapBuilder
+            worldId={worldId}
+            projects={creatableProjects}
+            projectScope={projectScope}
+            privyId={privyId}
+            onClose={() => setBuilding(false)}
+            onCreated={handleBuilt}
+          />
+        )}
       </div>
     );
   }
@@ -176,10 +200,23 @@ export default function InProcessLayer({
         />
       ))}
       {canEdit && !creating && visible.length > 0 && !projectScope && (
-        <button id="tour-ip-add" onClick={startCreate} className={`${btnGhost} self-start`}>+ Roadmap for another project</button>
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          <button id="tour-ip-add" onClick={startCreate} className={btnGhost}>+ Roadmap for another project</button>
+          <button onClick={() => setBuilding(true)} className={btnGhost} style={{ color: ORANGE }}>✦ Build one for me</button>
+        </div>
       )}
       <HowThisWorks canEdit={canEdit} />
       <Tour tourKey="inprocess" privyId={privyId} enabled={canEdit} steps={IP_TOUR} />
+      {building && (
+        <RoadmapBuilder
+          worldId={worldId}
+          projects={creatableProjects}
+          projectScope={projectScope}
+          privyId={privyId}
+          onClose={() => setBuilding(false)}
+          onCreated={handleBuilt}
+        />
+      )}
     </div>
   );
 }
