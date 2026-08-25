@@ -155,7 +155,7 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingAvatar(true); setError('');
-    try { setAvatarUrl(await resizeImage(file)); setPhotoChoice('upload'); }
+    try { setAvatarUrl(await resizeImage(file, privyId)); setPhotoChoice('upload'); }
     catch { setError("Couldn't process that image — try another."); }
     finally { setUploadingAvatar(false); }
   }

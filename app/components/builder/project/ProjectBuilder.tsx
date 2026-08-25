@@ -393,7 +393,7 @@ export function ProjectBuilder({ worldId, privyId, members, allTools, onExitToFo
   const upload = useCallback(async (file: File) => {
     setUploading(true);
     try {
-      const url = await resizeAndUploadImage(file, 1280);
+      const url = await resizeAndUploadImage(file, 1280, privyId);
       setDraft({ ...(draftRef.current ?? emptyProjectDraft()), imageUrl: url });
       setShowUpload(false);
       if (stage === 'image') advance();

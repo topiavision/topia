@@ -45,7 +45,7 @@ export default function CreateWorldPage() {
     setUploading(true);
     setError('');
     try {
-      const url = await resizeAndUploadImage(file, 1024);
+      const url = await resizeAndUploadImage(file, 1024, user?.id ?? '');
       setForm((p) => ({ ...p, imageUrl: url }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Image upload failed');

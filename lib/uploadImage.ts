@@ -17,10 +17,13 @@ export function isGif(file: File): boolean {
   return file.type === 'image/gif';
 }
 
-/** Upload a raw file to Vercel Blob; resolves to the public URL. */
-export async function uploadToBlob(file: File): Promise<string> {
+/** Upload a raw file to Vercel Blob; resolves to the public URL. The
+ * caller's privyId is required — the upload route rejects anonymous
+ * uploads (blob storage is not a public drop box). */
+export async function uploadToBlob(file: File, privyId: string): Promise<string> {
   const fd = new FormData();
   fd.append('file', file);
+  fd.append('privyId', privyId);
   const res = await fetch(UPLOAD_ENDPOINT, { method: 'POST', body: fd });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -38,10 +41,10 @@ export async function uploadToBlob(file: File): Promise<string> {
  * API response and the DB; Blob URLs are browser-cacheable and tiny to store.
  * Browser-only (canvas) — call from client components on a user action.
  */
-export async function resizeAndUploadAvatar(file: File): Promise<string> {
-  if (isGif(file)) return uploadToBlob(file);
+export async function resizeAndUploadAvatar(file: File, privyId: string): Promise<string> {
+  if (isGif(file)) return uploadToBlob(file, privyId);
   const blob = await resizeToJpeg(file, 256, 0.85);
-  return uploadToBlob(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }));
+  return uploadToBlob(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }), privyId);
 }
 
 /**
@@ -51,10 +54,10 @@ export async function resizeAndUploadAvatar(file: File): Promise<string> {
  * (cleaned up once already by scripts/migrate-world-images-to-blob.mjs;
  * don't re-bloat).
  */
-export async function resizeAndUploadImage(file: File, max = 1024): Promise<string> {
-  if (isGif(file)) return uploadToBlob(file);
+export async function resizeAndUploadImage(file: File, max: number, privyId: string): Promise<string> {
+  if (isGif(file)) return uploadToBlob(file, privyId);
   const blob = await resizeToJpeg(file, max, 0.85);
-  return uploadToBlob(new File([blob], 'image.jpg', { type: 'image/jpeg' }));
+  return uploadToBlob(new File([blob], 'image.jpg', { type: 'image/jpeg' }), privyId);
 }
 
 function resizeToJpeg(file: File, max: number, quality: number): Promise<Blob> {

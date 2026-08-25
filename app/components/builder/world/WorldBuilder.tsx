@@ -260,7 +260,7 @@ export function WorldBuilder({ privyId, onExitToForm, onClose }: {
   const upload = useCallback(async (file: File) => {
     setUploading(true);
     try {
-      const url = await resizeAndUploadImage(file, 1024);
+      const url = await resizeAndUploadImage(file, 1024, privyId);
       setDraft({ ...(draftRef.current ?? emptyWorldDraft()), imageUrl: url });
       setShowUpload(false);
       if (stage === 'image') advance();

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 import StepShell from '../StepShell';
 import { PathConfig } from '../../components/profile/pathConfig';
 import { resizeAndUploadAvatar } from '../../../lib/uploadImage';
@@ -22,6 +23,7 @@ const resizeImage = resizeAndUploadAvatar;
 export default function AvatarStep({ step, total, config, initialValue, fallbackName, onBack, onAdvance }: Props) {
   // Only a real uploaded photo pre-fills — an auto-generated SVG fallback is
   // treated as "no photo yet" so the user is prompted to upload a real one.
+  const { user } = usePrivy();
   const [avatarUrl, setAvatarUrl] = useState(isRealPhoto(initialValue) ? initialValue : '');
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -30,7 +32,7 @@ export default function AvatarStep({ step, total, config, initialValue, fallback
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const resized = await resizeImage(file);
+      const resized = await resizeImage(file, user?.id ?? '');
       setAvatarUrl(resized);
       setError('');
     } catch {
