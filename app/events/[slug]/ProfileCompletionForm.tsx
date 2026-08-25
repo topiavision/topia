@@ -57,7 +57,7 @@ export default function ProfileCompletionForm({ privyId, profile, onComplete, on
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      setAvatar(await resizeImage(file));
+      setAvatar(await resizeImage(file, privyId));
       setError(null);
     } catch {
       setError("Couldn't process that image — try another.");

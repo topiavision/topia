@@ -262,7 +262,7 @@ export default function ProfilePage() {
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try { setAvatarUrl(await resizeImage(file)); } catch { console.error('Failed to process image'); }
+    try { setAvatarUrl(await resizeImage(file, user?.id ?? '')); } catch { console.error('Failed to process image'); }
   };
 
   const handleUnlink = async (type: string, fn: () => Promise<unknown>) => {
@@ -346,7 +346,7 @@ export default function ProfilePage() {
                   setAvatarDragging(false);
                   const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith('image/'));
                   if (!file) return;
-                  try { setAvatarUrl(await resizeImage(file)); } catch { console.error('drop failed'); }
+                  try { setAvatarUrl(await resizeImage(file, user?.id ?? '')); } catch { console.error('drop failed'); }
                 }}
               >
                 <button

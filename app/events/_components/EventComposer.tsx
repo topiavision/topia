@@ -457,7 +457,7 @@ export default function EventComposer({ mode, initial }: { mode: 'create' | 'edi
     v.src = url;
   });
   const uploadToBlob = async (file: Blob, filename: string): Promise<string> => {
-    const fd = new FormData(); fd.append('file', file, filename);
+    const fd = new FormData(); fd.append('file', file, filename); fd.append('privyId', user?.id ?? '');
     const res = await fetch('/api/events/cover-upload', { method: 'POST', body: fd });
     const json = await res.json();
     if (!res.ok || !json.ok) throw new Error(json.error || 'Upload failed');

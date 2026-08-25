@@ -1,34 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { BuilderCommand, TemplateId } from '@/lib/roadmap-builder/types';
-import { inputCls } from '../../InProcessFields';
-import { orangeMix } from '../constants';
+
+/* The builder bots' shared chat surface: transcript with typewriter bot
+ * replies, typing dots, staggered chips, composer. Generic over the chip
+ * type — each flow keeps its own discriminated union (so its handleChip
+ * switch stays exhaustiveness-checked) and ChatPane only reads label/accent.
+ *
+ * Style consts are local (not imported from world/) so shared code never
+ * reaches into a domain folder. Values mirror InProcessFields. */
+
+const inputCls = 'w-full border border-ink/15 bg-transparent px-3 py-2 font-mono text-[16px] sm:text-[13px] rounded-sm outline-none text-ink placeholder:text-ink/30 focus:border-ink/40';
+const orangeMix = (pct: number) => `color-mix(in srgb, var(--orange) ${pct}%, transparent)`;
 
 export interface ChatMessage { id: string; role: 'bot' | 'user'; text: string }
-
-/* One discriminated union for every chip the builder can show; the shell's
- * handleChip switch is the single interpreter. */
-export type Chip =
-  | { label: string; t: 'project'; id: string; name: string }
-  | { label: string; t: 'new_project' }
-  | { label: string; t: 'world_wide' }
-  | { label: string; t: 'template'; id: TemplateId }
-  | { label: string; t: 'skip_name' }
-  | { label: string; t: 'months'; n: number }
-  | { label: string; t: 'pick_date' }
-  | { label: string; t: 'skip_timeframe' }
-  | { label: string; t: 'add' }
-  | { label: string; t: 'timeline' }
-  | { label: string; t: 'mark_done' }
-  | { label: string; t: 'rename' }
-  | { label: string; t: 'fund' }
-  | { label: string; t: 'pick_ms'; index: number; rename?: boolean; goal?: boolean; cmd?: BuilderCommand }
-  | { label: string; t: 'save'; accent?: boolean }
-  | { label: string; t: 'finish_partial' }
-  | { label: string; t: 'try_again' }
-  | { label: string; t: 'keep_editing' }
-  | { label: string; t: 'cancel' };
+export interface ChipBase { label: string; accent?: boolean }
 
 /* Bot replies type themselves out — the single biggest "someone's there"
  * cue. ~1s max regardless of length; already-seen messages render settled. */
@@ -66,21 +52,22 @@ function TypingDots() {
   );
 }
 
-export function ChatPane({ messages, chips, onChip, onSubmit, disabled, typing, extra }: {
+export function ChatPane<C extends ChipBase>({ messages, chips, onChip, onSubmit, disabled, typing, extra, placeholder }: {
   messages: ChatMessage[];
-  chips: Chip[];
-  onChip: (chip: Chip) => void;
+  chips: C[];
+  onChip: (chip: C) => void;
   onSubmit: (text: string) => void;
   disabled: boolean;
   /** A reply is on its way — show the thinking dots. */
   typing: boolean;
+  /** Slot above the composer — date pickers, file inputs, etc. */
   extra?: React.ReactNode;
+  placeholder?: string;
 }) {
   const [text, setText] = useState('');
   const scrollerRef = useRef<HTMLDivElement>(null);
-  // Ids that were already on screen in a previous commit — only genuinely new
-  // bot messages play the typewriter. Mutated in an effect, not during render,
-  // so StrictMode's double render can't mark a message as seen prematurely.
+  // Ids already on screen in a previous commit — only genuinely new bot
+  // messages play the typewriter. Mutated in an effect, never during render.
   const committed = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const m of messages) committed.current.add(m.id);
@@ -90,8 +77,6 @@ export function ChatPane({ messages, chips, onChip, onSubmit, disabled, typing, 
     const el = scrollerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   };
-  // Keep the newest turn in view — chips render below the transcript, so
-  // scroll on either changing.
   useEffect(scrollToEnd, [messages, chips, typing, extra]);
 
   const submit = () => {
@@ -123,10 +108,10 @@ export function ChatPane({ messages, chips, onChip, onSubmit, disabled, typing, 
           <div className="flex flex-wrap gap-1.5 pt-1">
             {chips.map((c, i) => (
               <button
-                key={`${c.t}-${c.label}-${i}`}
+                key={`${c.label}-${i}`}
                 onClick={() => onChip(c)}
                 className={`ipb-enter font-mono text-[11px] uppercase tracking-[1px] px-2.5 py-1.5 rounded-full cursor-pointer transition-all hover:-translate-y-px ${
-                  'accent' in c && c.accent
+                  c.accent
                     ? 'bg-lime text-obsidian font-bold border-none hover:opacity-90 hover:shadow-[0_0_14px_rgba(228,254,82,0.35)]'
                     : 'bg-transparent text-ink/60 border border-ink/15 hover:border-ink/40 hover:text-ink'
                 }`}
@@ -145,7 +130,7 @@ export function ChatPane({ messages, chips, onChip, onSubmit, disabled, typing, 
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
-            placeholder={disabled ? 'Saving…' : 'Type anything…'}
+            placeholder={disabled ? 'Saving…' : placeholder ?? 'Type anything…'}
             disabled={disabled}
             className={inputCls}
             enterKeyHint="send"

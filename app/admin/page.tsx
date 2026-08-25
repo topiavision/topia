@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 import { isRealPhoto } from '../../lib/avatar';
 import { uploadToBlob } from '../../lib/uploadImage';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -250,6 +251,7 @@ interface Creator {
 
 function WorldsTab() {
   const { adminFetch } = useAdminAuth();
+  const { user: privyUser } = usePrivy();
   const [items, setItems] = useState<WorldWithMembers[]>([]);
   const [modal, setModal] = useState<{ open: boolean; item: WorldWithMembers | null }>({ open: false, item: null });
   const [saving, setSaving] = useState(false);
@@ -296,7 +298,7 @@ function WorldsTab() {
     if (!file) return;
     // Upload to Blob and store the URL (was an inline base64 data URL).
     try {
-      const url = await uploadToBlob(file);
+      const url = await uploadToBlob(file, privyUser?.id ?? '');
       setForm(p => ({ ...p, imageUrl: url }));
     } catch {
       setError('Image upload failed');
@@ -917,6 +919,7 @@ interface CreatorRow {
 
 function CreatorsTab() {
   const { adminFetch } = useAdminAuth();
+  const { user: privyUser } = usePrivy();
   const [items, setItems] = useState<CreatorRow[]>([]);
   const [modal, setModal] = useState<{ open: boolean; item: CreatorRow | null }>({ open: false, item: null });
   const [saving, setSaving] = useState(false);
@@ -953,7 +956,7 @@ function CreatorsTab() {
     if (!file) return;
     // Upload to Blob and store the URL (was an inline base64 data URL).
     try {
-      const url = await uploadToBlob(file);
+      const url = await uploadToBlob(file, privyUser?.id ?? '');
       setForm(p => ({ ...p, imageUrl: url }));
     } catch {
       setError('Image upload failed');

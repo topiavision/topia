@@ -6,11 +6,15 @@ import { ProjectItem } from '../../../_components/types';
 import { ReadOnlyBanner } from '../../../_components/ReadOnlyBanner';
 import ConfirmDialog from '../../../../components/ConfirmDialog';
 import ProjectThumb from '../../../../components/ProjectThumb';
+import { ProjectBuilder } from '../../../../components/builder/project/ProjectBuilder';
 import { useWorldDashboard } from '../layout';
 
 export default function WorldProjectsPage() {
   const { world, projects, setProjects, allTools, privyId, isBuilder } = useWorldDashboard();
   const [editingProject, setEditingProject] = useState<ProjectItem | null | 'new'>(null);
+  // Bot-first: + Project opens the builder; its "Use the form instead" link
+  // swaps to the classic ProjectEditor (which also stays the edit surface).
+  const [building, setBuilding] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const deleteProject = async (id: string) => {
@@ -29,7 +33,7 @@ export default function WorldProjectsPage() {
         </span>
         {isBuilder && !editingProject && (
           <button
-            onClick={() => setEditingProject('new')}
+            onClick={() => setBuilding(true)}
             className="font-mono text-[11px] uppercase tracking-[2px] bg-lime text-obsidian font-bold px-3 py-1.5 rounded-sm hover:opacity-90 transition cursor-pointer border-none"
           >
             + Project
@@ -38,6 +42,18 @@ export default function WorldProjectsPage() {
       </div>
 
       {!isBuilder && <ReadOnlyBanner />}
+
+      {isBuilder && building && (
+        <ProjectBuilder
+          worldId={world.id}
+          privyId={privyId}
+          members={world.members}
+          allTools={allTools}
+          onExitToForm={() => { setBuilding(false); setEditingProject('new'); }}
+          onClose={() => setBuilding(false)}
+          onCreated={(p) => { setProjects(prev => [...prev, p]); setBuilding(false); }}
+        />
+      )}
 
       {/* Editor — builders only */}
       {isBuilder && editingProject && (
@@ -116,7 +132,7 @@ export default function WorldProjectsPage() {
           <p className="font-mono text-[12px] text-ink/40 mb-3">No projects yet — projects are the pins on your world&apos;s globe.</p>
           {isBuilder && (
             <button
-              onClick={() => setEditingProject('new')}
+              onClick={() => setBuilding(true)}
               className="font-mono text-[11px] uppercase tracking-[2px] bg-lime text-obsidian font-bold px-4 py-2 rounded-sm hover:opacity-90 transition cursor-pointer border-none"
             >
               + Add your first project

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
+import { eq } from 'drizzle-orm';
+import { db, users } from '@/lib/db';
 
 /**
  * POST /api/events/cover-upload
@@ -45,6 +47,18 @@ export async function POST(request: NextRequest) {
     }
 
     const form = await request.formData();
+
+    // Uploads write to shared blob storage — signed-in users only. Same
+    // body-privyId bar as every other write route (identify, then act).
+    const privyId = form.get('privyId');
+    if (!privyId || typeof privyId !== 'string') {
+      return NextResponse.json({ error: 'Sign in to upload' }, { status: 401 });
+    }
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.privyId, privyId)).limit(1);
+    if (!user) {
+      return NextResponse.json({ error: 'Sign in to upload' }, { status: 401 });
+    }
+
     const file = form.get('file');
     if (!file || !(file instanceof File)) {
       return NextResponse.json({ error: 'Missing file' }, { status: 400 });
