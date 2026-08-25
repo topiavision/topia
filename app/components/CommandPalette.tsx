@@ -120,14 +120,17 @@ export default function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-[3000] flex items-start justify-center px-4 pt-[12vh]"
+      className="fixed inset-0 z-[3000] flex items-stretch sm:items-start justify-center sm:px-4 sm:pt-[12vh]"
       style={{ backgroundColor: 'rgba(10,10,10,0.55)' }}
       onClick={() => setOpen(false)}
     >
-      <div className="w-full max-w-[560px]" onClick={(e) => e.stopPropagation()}>
+      {/* Phones get a full-height sheet (lvh — the keyboard breaks vh), not a
+          floating card the keyboard shoves around; sm+ keeps the centered
+          panel. Same rules every overlay here follows. */}
+      <div className="w-full sm:max-w-[560px] h-[100lvh] sm:h-auto" onClick={(e) => e.stopPropagation()}>
         <Command
           label="Search Topia"
-          className="rounded-[14px] overflow-hidden bg-obsidian text-bone border"
+          className="h-full sm:h-auto sm:rounded-[14px] overflow-hidden bg-obsidian text-bone border-0 sm:border flex flex-col"
           style={{ borderColor: 'rgba(228,254,82,0.28)' }}
           // cmdk's default scoring already handles fuzzy label + keyword match.
         >
@@ -140,10 +143,11 @@ export default function CommandPalette() {
               placeholder="Search worlds, events, people — or type an action…"
               className="flex-1 bg-transparent border-none outline-none py-3.5 text-[16px] text-[#e8e4dc] placeholder:text-[rgba(232,228,220,0.35)]"
             />
-            <kbd className="font-mono text-[10px] tracking-[1px] px-1.5 py-0.5 rounded border" style={{ color: 'rgba(232,228,220,0.35)', borderColor: 'rgba(232,228,220,0.15)' }}>ESC</kbd>
+            <kbd className="hidden sm:inline font-mono text-[10px] tracking-[1px] px-1.5 py-0.5 rounded border" style={{ color: 'rgba(232,228,220,0.35)', borderColor: 'rgba(232,228,220,0.15)' }}>ESC</kbd>
+            <button onClick={() => setOpen(false)} aria-label="Close search" className="sm:hidden bg-transparent border-none cursor-pointer text-[20px] leading-none p-1" style={{ color: 'rgba(232,228,220,0.5)' }}>×</button>
           </div>
 
-          <Command.List className={`max-h-[52vh] overflow-y-auto pb-2 ${groupCls}`}>
+          <Command.List className={`flex-1 sm:flex-none sm:max-h-[52vh] overflow-y-auto pb-2 ${groupCls}`}>
             <Command.Empty className="px-4 py-8 text-center font-mono text-[12px] text-[rgba(232,228,220,0.4)]">
               Nothing for “{query}” — try a world, event, or person.
             </Command.Empty>
@@ -213,8 +217,10 @@ export default function CommandPalette() {
           </Command.List>
 
           <div className="flex items-center justify-between px-4 py-2.5 border-t font-mono text-[10px]" style={{ borderColor: 'rgba(232,228,220,0.1)', color: 'rgba(232,228,220,0.4)' }}>
-            <span>↑↓ navigate · ↵ open</span>
-            <span className="tracking-[1px]">TOPIA <span style={{ color: '#e4fe52' }}>⌘K</span></span>
+            {/* Keyboard hints mean nothing on a phone — say what it is instead. */}
+            <span className="hidden sm:inline">↑↓ navigate · ↵ open</span>
+            <span className="sm:hidden">Search all of Topia</span>
+            <span className="tracking-[1px]">TOPIA<span className="hidden sm:inline"> <span style={{ color: '#e4fe52' }}>⌘K</span></span></span>
           </div>
         </Command>
       </div>

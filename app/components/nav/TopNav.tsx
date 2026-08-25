@@ -63,11 +63,39 @@ export default function TopNav({ onOpenMessages }: { onOpenMessages: () => void 
       {/* Logo */}
       <Link
         href="/"
-        className="font-basement font-black text-sm tracking-[4px] uppercase no-underline"
+        className="font-basement font-black text-sm tracking-[4px] uppercase no-underline shrink-0"
         style={{ color: 'var(--page-text)' }}
       >
         TOPIA<span style={{ color: 'var(--accent, #e4fe52)' }}>.</span>
       </Link>
+
+      {/* Search — a wide, field-shaped trigger for the ⌘K palette, sitting in
+          the middle of the bar the way Stripe's does. It LOOKS like an input
+          (surface tint, left-aligned helper text) because that is what makes
+          search obvious; a small icon button read as decoration. It stays a
+          button — focus belongs to the palette, which opens with a real input
+          ready to type into. */}
+      <button
+        onClick={() => window.dispatchEvent(new CustomEvent('topia:open-cmdk'))}
+        aria-label="Search Topia (⌘K)"
+        className="hidden lg:flex flex-1 max-w-[460px] mx-8 items-center gap-2.5 rounded-lg border px-3.5 h-[34px] cursor-text text-left transition-colors hover:border-[color-mix(in_srgb,var(--page-text)_35%,transparent)]"
+        style={{
+          borderColor: 'var(--nav-border)',
+          color: 'var(--page-text)',
+          backgroundColor: 'color-mix(in srgb, var(--page-text) 4%, transparent)',
+        }}
+      >
+        <span className="text-[14px] leading-none shrink-0" style={{ opacity: 0.45 }}>⌕</span>
+        <span className="font-mono text-[12px] tracking-wide truncate flex-1" style={{ opacity: 0.45 }}>
+          Search worlds, events, people…
+        </span>
+        <kbd
+          className="font-mono text-[9px] tracking-[1px] px-1.5 py-0.5 rounded border leading-none shrink-0"
+          style={{ borderColor: 'var(--nav-border)', opacity: 0.55 }}
+        >
+          ⌘K
+        </kbd>
+      </button>
 
       {/* Right side */}
       <div className="flex items-center gap-4">
@@ -89,17 +117,14 @@ export default function TopNav({ onOpenMessages }: { onOpenMessages: () => void 
             </span>
           </Link>
         )}
-        {/* Search — opens the ⌘K palette. Search had NO desktop entry point
-            at all before this (it was mobile-pill-only). */}
+        {/* Compact search for md–lg widths, where the wide field doesn't fit. */}
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('topia:open-cmdk'))}
           aria-label="Search (⌘K)"
-          className="flex items-center gap-2 rounded-lg border px-3 py-1.5 cursor-pointer bg-transparent hover:opacity-100 opacity-70 transition-opacity"
+          className="lg:hidden flex items-center rounded-lg border px-2.5 py-1.5 cursor-pointer bg-transparent hover:opacity-100 opacity-70 transition-opacity"
           style={{ borderColor: 'var(--nav-border)', color: 'var(--page-text)' }}
         >
-          <span className="text-[13px] leading-none">⌕</span>
-          <span className="font-mono text-[11px] tracking-wider hidden lg:inline" style={{ opacity: 0.6 }}>Search</span>
-          <kbd className="font-mono text-[9px] tracking-[1px] px-1 py-px rounded border leading-none" style={{ borderColor: 'var(--nav-border)', opacity: 0.55 }}>⌘K</kbd>
+          <span className="text-[14px] leading-none">⌕</span>
         </button>
         {/* Menu dropdown */}
         <div className="relative">

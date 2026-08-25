@@ -191,12 +191,20 @@ export default function FrostedPill({ onMenuToggle, onOpenMessages, onOpenCard }
           {messagesBadge > 0 && dot}
         </button>
 
-        <Link href="/search" aria-label="Search" aria-current={isActive('/search') ? 'page' : undefined} className={itemCls} style={itemStyle(isActive('/search'))}>
+        {/* Opens the ⌘K palette — the same smart search desktop has — rather
+            than the legacy /search page, which filtered a full client-side
+            download and searched fewer things. */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('topia:open-cmdk'))}
+          aria-label="Search"
+          className={itemCls}
+          style={itemStyle(false)}
+        >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="7" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-        </Link>
+        </button>
 
         {/* Your Topia card + connect QR — the thing you flash at a door or
             trade with someone you just met, one tap from anywhere */}
