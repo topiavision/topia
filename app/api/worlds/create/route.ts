@@ -8,6 +8,21 @@ function createSlug(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+// worlds.slug is UNIQUE and this route never deduped — a second world named
+// the same 500'd (CLAUDE.md mistake #10). Same ladder as events: -2..-9,
+// then a base36 timestamp. '|| "world"' guards an all-emoji title (slug '').
+async function uniqueWorldSlug(title: string): Promise<string> {
+  const base = createSlug(title) || 'world';
+  const taken = new Set(
+    (await db.select({ slug: worlds.slug }).from(worlds)).map((w) => w.slug),
+  );
+  if (!taken.has(base)) return base;
+  for (let i = 2; i <= 9; i++) {
+    if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+  }
+  return `${base}-${Date.now().toString(36)}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
@@ -19,7 +34,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
     if (user.path === 'catalyst') return NextResponse.json({ error: 'Catalysts cannot create worlds' }, { status: 403 });
 
-    const slug = createSlug(data.title);
+    const slug = await uniqueWorldSlug(data.title);
     const today = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 
     // Create the world

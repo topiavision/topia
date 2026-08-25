@@ -6,21 +6,23 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDashboard } from '../_components/DashboardContext';
 import { resizeAndUploadImage } from '../../../lib/uploadImage';
-
-const WORLD_CATEGORIES = [
-  'Art', 'Music', 'Film', 'Gaming', 'Fashion', 'Technology',
-  'Photography', 'Dance', 'Theater', 'Literature', 'Design', 'Other',
-];
+import { WORLD_CATEGORIES } from '@/lib/builder/world';
+import { WorldBuilder } from '../../components/builder/world/WorldBuilder';
 
 /**
  * Create-world lives INSIDE the dashboard shell (sidebar + nav come from
  * dashboard/layout.tsx — this page must not render its own chrome).
+ *
+ * Bot-first: the World Builder takeover opens by default; "Use the form
+ * instead" (permanent header link in the builder) swaps to the classic form
+ * below, which is unchanged.
  */
 export default function CreateWorldPage() {
   const { user } = usePrivy();
   const router = useRouter();
   const { profile } = useDashboard();
 
+  const [mode, setMode] = useState<'bot' | 'form'>('bot');
   const [form, setForm] = useState({
     title: '',
     shortDescription: '',
@@ -43,7 +45,7 @@ export default function CreateWorldPage() {
     setUploading(true);
     setError('');
     try {
-      const url = await resizeAndUploadImage(file, 1024);
+      const url = await resizeAndUploadImage(file, 1024, user?.id ?? '');
       setForm((p) => ({ ...p, imageUrl: url }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Image upload failed');
@@ -80,6 +82,23 @@ export default function CreateWorldPage() {
   };
 
   const inputCls = 'w-full bg-transparent border border-ink/15 rounded-sm px-3 py-2.5 font-mono text-[16px] md:text-[13px] text-ink outline-none focus:border-[var(--accent-ink)]/60 transition-colors';
+
+  // Bot mode: the takeover renders over the dashboard shell; the header band
+  // below stays as the page behind it. Wait for Privy so the builder always
+  // holds a real privyId.
+  if (mode === 'bot' && profile?.path !== 'catalyst') {
+    // Hold blank (not the form — no flash) until Privy hands us the user.
+    if (!user) return <div className="max-w-2xl" />;
+    return (
+      <div className="max-w-2xl">
+        <WorldBuilder
+          privyId={user.id}
+          onExitToForm={() => setMode('form')}
+          onClose={() => router.push('/dashboard')}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl">

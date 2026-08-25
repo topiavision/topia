@@ -3,6 +3,7 @@
 import { ORANGE } from './in-process/constants';
 
 import { useState } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 import { resizeAndUploadImage } from '../../../lib/uploadImage';
 
 /* Shared editor primitives for In Process roadmaps — used by the world-page
@@ -94,6 +95,9 @@ export function EraDateField({ label, value, precision, onChange }: {
 export function ImageField({ value, onChange, label = 'Image (optional)' }: {
   value: string; onChange: (url: string) => void; label?: string;
 }) {
+  // Identify the uploader without threading a prop through every editor —
+  // this component only renders for signed-in builders anyway.
+  const { user } = usePrivy();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
@@ -102,7 +106,7 @@ export function ImageField({ value, onChange, label = 'Image (optional)' }: {
     if (!file) return;
     setUploading(true); setError('');
     try {
-      onChange(await resizeAndUploadImage(file, 1280));
+      onChange(await resizeAndUploadImage(file, 1280, user?.id ?? ''));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Image upload failed');
     } finally { setUploading(false); }

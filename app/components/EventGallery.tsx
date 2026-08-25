@@ -135,6 +135,7 @@ export default function EventGallery({ slug, isHost, privyId }: Props) {
       for (const file of files) {
         const fd = new FormData();
         fd.append('file', file);
+        fd.append('privyId', privyId ?? '');
         const res = await fetch('/api/events/cover-upload', { method: 'POST', body: fd });
         const json = await res.json();
         if (!res.ok || !json.ok) { setError(json.error || `Couldn't upload ${file.name}`); continue; }

@@ -83,7 +83,7 @@ export function ProjectEditor({
     setError('');
     try {
       // Blob URL, not base64 — keeps project rows small.
-      setImageUrl(await resizeAndUploadImage(file, 1024));
+      setImageUrl(await resizeAndUploadImage(file, 1024, privyId));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Image upload failed');
     } finally {

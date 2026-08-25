@@ -110,7 +110,7 @@ export default function CommentSection({ endpoint, slug, kind, gateHint, title }
   async function uploadMedia(file: File) {
     setError(null); setUploadingMedia(true);
     try {
-      const fd = new FormData(); fd.append('file', file);
+      const fd = new FormData(); fd.append('file', file); fd.append('privyId', user?.id ?? '');
       const res = await fetch('/api/events/cover-upload', { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok || !json.ok) { setError(json.error || 'Upload failed'); return; }
@@ -158,7 +158,7 @@ export default function CommentSection({ endpoint, slug, kind, gateHint, title }
   async function uploadReplyMedia(file: File) {
     setError(null); setReplyUploading(true);
     try {
-      const fd = new FormData(); fd.append('file', file);
+      const fd = new FormData(); fd.append('file', file); fd.append('privyId', user?.id ?? '');
       const res = await fetch('/api/events/cover-upload', { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok || !json.ok) { setError(json.error || 'Upload failed'); return; }

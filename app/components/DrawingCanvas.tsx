@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 
 interface Props {
   open: boolean;
@@ -76,6 +77,7 @@ function uid() { return Math.random().toString(36).slice(2, 10); }
 /* ─── Component ──────────────────────────────────────────────── */
 
 export default function DrawingCanvas({ open, onClose, onSave, size = 512 }: Props) {
+  const { user: privyUser } = usePrivy();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const svgRef    = useRef<SVGSVGElement>(null);
   const isDrawingRef = useRef(false);
@@ -446,6 +448,7 @@ export default function DrawingCanvas({ open, onClose, onSave, size = 512 }: Pro
       });
       const fd = new FormData();
       fd.append('file', blob, 'drawing.png');
+      fd.append('privyId', privyUser?.id ?? '');
       const res = await fetch('/api/events/cover-upload', { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok || !json.ok) { setError(json.error || 'Upload failed'); return; }
