@@ -10,6 +10,8 @@ import { parseNaturalDate, parseDateRange, distributeDates } from '../lib/roadma
 import { parseSeed } from '../lib/roadmap-builder/parse';
 import { TEMPLATES, templateById, instantiate } from '../lib/roadmap-builder/templates';
 import { parseUtterance, applyCommand, matchMilestone, draftToBatchPayload, parseDollars } from '../lib/roadmap-builder/commands';
+import { draftFromEra, diffToPatches, keyForId } from '../lib/roadmap-builder/edit';
+import type { EraView } from '../app/components/world/in-process/types';
 import { MAX_COUNTABLE_REPEATS } from '../lib/roadmap-builder/types';
 
 const NOW = new Date('2026-08-24T00:00:00'); // pinned — a Monday in August
@@ -184,6 +186,62 @@ check('era status always active', body.era.status, 'active');
 check('sortOrder = array index', body.milestones.map((m) => m.sortOrder).join(), body.milestones.map((_, i) => i).join());
 check('dates are normalized YYYY-MM-DD', body.milestones.every((m) => !m.startDate || /^\d{4}-\d{2}-\d{2}$/.test(m.startDate)), true);
 check('no funding fields in payload', 'goalCents' in (body.milestones[0] as object), false);
+
+/* ── Live edit: hydrate + diff-to-patches ──────────────────────────── */
+console.log('\nEdit mode:');
+const ERA: EraView = {
+  id: 'era-1', title: 'Season One', description: 'building in public',
+  projectId: 'p1', projectName: 'Signal', projectSlug: 'signal',
+  startDate: '2026-08-01', endDate: '2027-04-01', startPrecision: 'month', endPrecision: 'month',
+  startLabel: null, endLabel: null, status: 'active', inProcessUrl: null,
+  posts: [],
+  milestones: [
+    { id: 'm-aaa', title: 'Concept', description: null, startDate: '2026-08-01', endDate: null, startPrecision: 'month', endPrecision: null, dateLabel: null, status: 'done', imageUrl: null },
+    { id: 'm-bbb', title: 'Trailer', description: null, startDate: '2026-10-01', endDate: null, startPrecision: 'month', endPrecision: null, dateLabel: null, status: 'now', imageUrl: null },
+    { id: 'm-ccc', title: 'Launch', description: null, startDate: '2027-04-01', endDate: null, startPrecision: 'day', endPrecision: null, dateLabel: null, status: 'upcoming', imageUrl: null },
+  ],
+};
+const hydrated = draftFromEra(ERA, new Map([['m-bbb', { goalCents: 50000, blurb: 'gear' }]]));
+check('hydrate: project carried', hydrated.project, { mode: 'existing', id: 'p1', name: 'Signal' });
+check('hydrate: keys are ex-<id>', hydrated.milestones.map((m) => m.key), ['ex-m-aaa', 'ex-m-bbb', 'ex-m-ccc'].map(String));
+check('hydrate: day precision carried', hydrated.milestones[2].start, { value: '2027-04-01', precision: 'day' });
+check('hydrate: goal joined from map', hydrated.milestones[1].goalCents, 50000);
+check('hydrate: nothing pinned (re-flow must work)', hydrated.milestones.every((m) => !m.datePinned), true);
+check('no-op diff is empty', diffToPatches(hydrated, hydrated), []);
+
+let er = applyCommand(hydrated, parseUtterance('rename trailer to Teaser', NOW), NOW);
+check('rename → one ms-put', diffToPatches(hydrated, er.draft),
+  [{ kind: 'ms-put', milestoneId: 'm-bbb', body: { title: 'Teaser' } }]);
+
+er = applyCommand(hydrated, parseUtterance('mark trailer done', NOW), NOW);
+check('status → one ms-put', diffToPatches(hydrated, er.draft),
+  [{ kind: 'ms-put', milestoneId: 'm-bbb', body: { status: 'done' } }]);
+
+er = applyCommand(hydrated, parseUtterance('add vinyl drop in March', NOW), NOW);
+const addPatches = diffToPatches(hydrated, er.draft);
+check('add → one ms-post', addPatches.filter((p) => p.kind === 'ms-post').length, 1);
+const post = addPatches.find((p) => p.kind === 'ms-post');
+check('add carries sortOrder of its slot', typeof (post && 'body' in post ? post.body.sortOrder : undefined), 'number');
+check('add may resort neighbours only via sortOrder puts',
+  addPatches.filter((p) => p.kind === 'ms-put').every((p) => Object.keys((p as { body: object }).body).join() === 'sortOrder'), true);
+
+er = applyCommand(hydrated, parseUtterance('remove the concept', NOW), NOW);
+check('remove → one ms-delete', diffToPatches(hydrated, er.draft).filter((p) => p.kind === 'ms-delete'),
+  [{ kind: 'ms-delete', milestoneId: 'm-aaa' }]);
+
+er = applyCommand(hydrated, parseUtterance('call it Season Two', NOW), NOW);
+check('era title → era-put', diffToPatches(hydrated, er.draft), [{ kind: 'era-put', body: { title: 'Season Two' } }]);
+
+// Pin one date, then re-flow: pinned survives, others move, era dates move.
+let pinned = applyCommand(hydrated, { kind: 'set_milestone_date', ref: { title: 'Launch' }, start: { value: '2027-04-01', precision: 'day' }, end: null }, NOW);
+er = applyCommand(pinned.draft, parseUtterance('finish by December 2027', NOW), NOW);
+const flow = diffToPatches(pinned.draft, er.draft);
+check('re-flow: era-put present', flow.some((p) => p.kind === 'era-put'), true);
+check('re-flow: pinned milestone date untouched (sortOrder-only ok)',
+  flow.filter((p) => p.kind === 'ms-put' && p.milestoneId === 'm-ccc')
+    .every((p) => !('startDate' in (p as { body: object }).body)), true);
+check('re-flow: unpinned milestones patched', flow.filter((p) => p.kind === 'ms-put').length >= 1, true);
+check('keyForId round trip', keyForId('abc'), 'ex-abc');
 
 if (failures > 0) {
   console.error(`\n❌ ${failures} roadmap-builder assertion(s) failed.\n`);

@@ -32,7 +32,7 @@ export default function WorldOverviewPage() {
         ))}
       </div>
 
-      {/* Quick actions — builders only */}
+      {/* Quick actions — or just tell the assistant above — builders only */}
       {isBuilder && (
         <div className="border border-ink/[0.08] rounded-lg overflow-hidden mb-6">
           <div className="bg-[var(--page-bg)] border-b border-ink/[0.06] px-4 py-2">

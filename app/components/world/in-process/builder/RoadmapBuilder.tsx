@@ -1,16 +1,18 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BuilderCommand, DraftRoadmap, TemplateId } from '@/lib/roadmap-builder/types';
 import { applyCommand, draftToBatchPayload, matchMilestone, parseUtterance, parseDollars } from '@/lib/roadmap-builder/commands';
 import { parseSeed } from '@/lib/roadmap-builder/parse';
 import { TEMPLATES, instantiate, templateById } from '@/lib/roadmap-builder/templates';
 import { addMonths } from '@/lib/roadmap-builder/dates';
+import { draftFromEra, diffToPatches, idForKey } from '@/lib/roadmap-builder/edit';
 import { BuilderShell } from '../../../builder/BuilderShell';
 import { ChatPane } from '../../../builder/ChatPane';
 import { useBuilderChat } from '../../../builder/useBuilderChat';
 import { EraDateField, type Precision } from '../../InProcessFields';
 import type { EraMilestoneView, EraView, ProjectOption } from '../types';
+import type { GoalMap } from '../funding/types';
 import { COPY, CHIP, type Stage } from './script';
 import type { Chip } from './chips';
 import { DraftCanvas } from './DraftCanvas';
@@ -25,7 +27,7 @@ import { DraftCanvas } from './DraftCanvas';
  * against the ref (chat handlers need the fresh draft immediately), state
  * only drives rendering. */
 
-export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFund, accessToken, onClose, onCreated }: {
+export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFund, accessToken, onClose, onCreated, existing, goals, seedText, onEdited }: {
   worldId: string;
   projects: ProjectOption[];
   projectScope?: string;
@@ -37,7 +39,16 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
   accessToken?: string | null;
   onClose: () => void;
   onCreated: (era: EraView) => void;
+  /** EDIT MODE: a persisted era to manage live — every command saves
+   * immediately via the partial-patch APIs. Create-mode staging is skipped. */
+  existing?: EraView;
+  goals?: GoalMap;
+  /** Text from an AssistantBar — processed as the first user message. */
+  seedText?: string;
+  /** Called after any successful live edit so the page can refetch. */
+  onEdited?: () => void;
 }) {
+  const editing = Boolean(existing);
   const scopedProject = projectScope ? projects.find((p) => p.id === projectScope) ?? null : null;
 
   const templateChips = useMemo<Chip[]>(
@@ -45,7 +56,8 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     [],
   );
 
-  const { messages, chips, setChips, typing, pushUser, pushBot } = useBuilderChat<Chip>(() => {
+  const { messages, chips, setChips, typing, pushUser, pushBot, pushBotAfter } = useBuilderChat<Chip>(() => {
+    if (existing) return { text: COPY.editIntro(existing.title), chips: [] };
     if (scopedProject) return { text: COPY.describeExisting(scopedProject.name), chips: templateChips };
     if (projects.length === 0) return { text: COPY.describeNew, chips: templateChips };
     return {
@@ -59,14 +71,17 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
   });
 
   const [stage, setStage] = useState<Stage>(() =>
-    (scopedProject || projects.length === 0) ? 'describe' : 'project');
-  const [draft, setDraftState] = useState<DraftRoadmap | null>(null);
+    existing ? 'refine' : (scopedProject || projects.length === 0) ? 'describe' : 'project');
+  const [draft, setDraftState] = useState<DraftRoadmap | null>(() =>
+    existing
+      ? draftFromEra(existing, goals && new Map([...goals.entries()].map(([k, g]) => [k, { goalCents: g.goalCents, blurb: g.blurb }])))
+      : null);
   const [saving, setSaving] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pendingIntent, setPendingIntent] = useState<null | { type: 'add' } | { type: 'rename'; index: number } | { type: 'goal'; index: number }>(null);
 
-  const draftRef = useRef<DraftRoadmap | null>(null);
+  const draftRef = useRef<DraftRoadmap | null>(draft);
   const setDraft = useCallback((d: DraftRoadmap | null) => {
     draftRef.current = d;
     setDraftState(d);
@@ -88,17 +103,108 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     { label: CHIP.markDone, t: 'mark_done' },
     { label: CHIP.rename, t: 'rename' },
     ...(canFund ? [{ label: CHIP.fund, t: 'fund' as const }] : []),
-    { label: CHIP.save, t: 'save', accent: true },
-  ], [canFund]);
+    editing
+      ? { label: CHIP.doneEditing, t: 'done_edit' as const, accent: true }
+      : { label: CHIP.save, t: 'save' as const, accent: true },
+  ], [canFund, editing]);
 
   /* ── Draft plumbing ───────────────────────────────────────────────── */
 
+  /* EDIT MODE: turn a successful reducer step into immediate API writes.
+   * The canvas is optimistic; any failed patch rolls the draft back so it
+   * never lies about what's saved. */
+  const runLivePatches = useCallback(async (prev: DraftRoadmap, next: DraftRoadmap, cmd: BuilderCommand) => {
+    if (!existing) return;
+    const patches = diffToPatches(prev, next);
+    for (const p of patches) {
+      let res: Response;
+      if (p.kind === 'era-put') {
+        res = await fetch('/api/worlds/eras', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ privyId, eraId: existing.id, ...p.body }),
+        });
+      } else if (p.kind === 'ms-put') {
+        res = await fetch('/api/worlds/eras/milestones', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ privyId, milestoneId: p.milestoneId, ...p.body }),
+        });
+      } else if (p.kind === 'ms-post') {
+        res = await fetch('/api/worlds/eras/milestones', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ privyId, eraId: existing.id, ...p.body }),
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          const newId = data?.milestone?.id;
+          if (newId) {
+            // Reconcile the client key with the real row id for later edits.
+            const cur = draftRef.current;
+            if (cur) {
+              setDraft({
+                ...cur,
+                milestones: cur.milestones.map((m) => (m.key === p.clientKey ? { ...m, key: `ex-${newId}` } : m)),
+              });
+            }
+          }
+          continue;
+        }
+      } else {
+        res = await fetch(`/api/worlds/eras/milestones?milestoneId=${encodeURIComponent(p.milestoneId)}&privyId=${encodeURIComponent(privyId)}`, { method: 'DELETE' });
+      }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(typeof d?.error === 'string' ? d.error : 'save failed');
+      }
+    }
+    // Funding rides separately (the diff ignores goal fields) — same
+    // bearer-verified call the MilestoneModal makes.
+    if (cmd.kind === 'set_goal') {
+      const m = matchMilestone(cmd.ref, next.milestones);
+      const target = m.ok ? next.milestones[m.index] : null;
+      const milestoneId = target ? idForKey(target.key) : null;
+      if (milestoneId) {
+        const gRes = await fetch('/api/funding/goals', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({
+            privyId, targetType: 'milestone', targetId: milestoneId,
+            goalCents: cmd.cents, blurb: (target?.goalBlurb ?? '').trim() || null,
+          }),
+        });
+        if (!gRes.ok) {
+          const d = await gRes.json().catch(() => ({}));
+          throw new Error(typeof d?.error === 'string' ? d.error : 'the funding goal could not be saved');
+        }
+      }
+    }
+    onEdited?.();
+  }, [existing, privyId, accessToken, setDraft, onEdited]);
+
   // Every command flows through here: reducer against the ref + bot reply.
+  // In edit mode a successful step also persists immediately.
   const dispatch = useCallback((cmd: BuilderCommand, opts?: { silent?: boolean }) => {
     const prev = draftRef.current;
     if (!prev) return;
     const result = applyCommand(prev, cmd, new Date());
     setDraft(result.draft);
+
+    if (editing && result.ok) {
+      void pushBotAfter((async () => {
+        try {
+          await runLivePatches(prev, result.draft, cmd);
+          return `${result.reply} ✓ saved.`;
+        } catch (e) {
+          setDraft(prev); // roll the canvas back — it must never lie
+          return `That didn't save — ${e instanceof Error ? e.message : 'something went wrong'}. Nothing changed.`;
+        }
+      })());
+      if (!opts?.silent) setChips(refineChips());
+      return;
+    }
+
     if (opts?.silent) return;
     pushBot(result.reply);
     // A ref that missed or was ambiguous: offer the candidates (or the full
@@ -118,7 +224,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
       }
     }
     setChips(refineChips());
-  }, [setDraft, pushBot, setChips, refineChips]);
+  }, [editing, setDraft, pushBot, pushBotAfter, setChips, refineChips, runLivePatches]);
 
   const enterRefine = useCallback((withIntro: boolean) => {
     setStage('refine');
@@ -317,6 +423,9 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     dispatch(cmd);
   }, [stage, pendingIntent, pushUser, pushBot, seedDraft, dispatch, advanceFromSeed, enterRefine, setDraft]);
 
+  const handleTextRef = useRef(handleText);
+  handleTextRef.current = handleText;
+
   const handleChip = useCallback((chip: Chip) => {
     if (stage === 'saving') return;
     pushUser(chip.label);
@@ -418,6 +527,10 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
       case 'try_again':
         void save();
         break;
+      case 'done_edit':
+        onEdited?.();
+        onClose();
+        break;
       case 'finish_partial':
         if (createdEra.current) onCreated(createdEra.current);
         break;
@@ -429,6 +542,22 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     }
   }, [stage, pushUser, pushBot, setChips, templateChips, seedDraft, dispatch, advanceFromSeed, enterRefine, refineChips, save, setDraft, onCreated]);
 
+  /* Edit mode opens straight into refine chips; a seed from the
+   * AssistantBar is processed as the first user message. Ref-guarded so
+   * StrictMode's double effect can't run it twice. */
+  const bootRef = useRef(false);
+  useEffect(() => {
+    if (bootRef.current) return;
+    bootRef.current = true;
+    if (editing) setChips(refineChips());
+    if (seedText?.trim()) {
+      // Let the intro land first, then process the seed like typed input.
+      const t = setTimeout(() => handleTextRef.current(seedText), 250);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Silent edits from the canvas tap-editor — same reducer, no chat noise.
   const handleCanvasCommand = useCallback((cmd: BuilderCommand) => {
     dispatch(cmd, { silent: true });
@@ -436,12 +565,14 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
 
   const requestClose = useCallback(() => {
     if (saving) return;
+    // Edit mode saves as it goes — closing is always safe.
+    if (editing) { onEdited?.(); onClose(); return; }
     // Past the partial-goals notice the roadmap is already real — closing
     // means "take me to it", never "discard".
     if (createdEra.current) { onCreated(createdEra.current); return; }
     if (draftRef.current && !window.confirm('Discard this draft?')) return;
     onClose();
-  }, [saving, onClose, onCreated]);
+  }, [saving, editing, onClose, onCreated, onEdited]);
 
   const datePicker = showDatePicker ? (
     <div className="border border-ink/15 rounded-sm p-3 mb-2 bg-[var(--page-bg)]">
@@ -462,7 +593,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
 
   return (
     <BuilderShell
-      title="Roadmap Builder"
+      title={editing ? 'Roadmap Assistant' : 'Roadmap Builder'}
       onRequestClose={requestClose}
       chat={
         <ChatPane

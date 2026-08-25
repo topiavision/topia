@@ -81,6 +81,71 @@ export function parseWorldUtterance(text: string): WorldCommand {
   return { kind: 'unknown', raw };
 }
 
+/* ── HQ manage commands (WorldManager — live edits over the update
+ * whitelist, plus handoffs to the other builders) ──────────────────── */
+
+export const WORLD_SOCIAL_KEYS = ['website', 'twitter', 'instagram', 'soundcloud', 'spotify', 'linkedin', 'substack'] as const;
+export type WorldSocialKey = typeof WORLD_SOCIAL_KEYS[number];
+
+export type WorldManageCommand =
+  | { kind: 'set_tagline'; text: string }        // shortDescription
+  | { kind: 'set_long_description'; text: string }
+  | { kind: 'add_tool'; name: string }
+  | { kind: 'remove_tool'; name: string }
+  | { kind: 'set_social'; key: WorldSocialKey; url: string }
+  | { kind: 'want_upload' }
+  | { kind: 'immutable'; field: 'title' | 'category' | 'country' }
+  | { kind: 'handoff_project'; seed: string }
+  | { kind: 'handoff_roadmap'; seed: string }
+  | { kind: 'unknown'; raw: string };
+
+export function parseWorldManageUtterance(text: string): WorldManageCommand {
+  const raw = text.trim();
+  if (!raw) return { kind: 'unknown', raw };
+
+  // Things this bot must be honest about: the update route cannot touch these.
+  if (/^(?:rename|call\s+it|name\s+it|title\s*:)/i.test(raw)) return { kind: 'immutable', field: 'title' };
+  if (/^category\b/i.test(raw)) return { kind: 'immutable', field: 'category' };
+  if (/^(?:country|location)\b/i.test(raw)) return { kind: 'immutable', field: 'country' };
+
+  // Handoffs before field commands — "add a project called X" is not a tagline.
+  if (/\b(?:add|new|create|start|make)\b.*\bproject\b/i.test(raw) || /^project\s*:/i.test(raw)) {
+    return { kind: 'handoff_project', seed: raw };
+  }
+  if (/\broadmap\b|\bmilestone\b|in.?process/i.test(raw)) {
+    return { kind: 'handoff_roadmap', seed: raw };
+  }
+
+  if (/\b(?:cover|header|image|photo|banner)\b/i.test(raw) && !/^https?:/i.test(raw)) {
+    return { kind: 'want_upload' };
+  }
+
+  let m = raw.match(/^(?:tagline|short\s*description|one.?liner)\s*:?\s+(.+)$/i);
+  if (m) return { kind: 'set_tagline', text: m[1].trim().slice(0, 300) };
+  m = raw.match(/^(?:description|about|story)\s*:?\s+(.+)$/i);
+  if (m) return { kind: 'set_long_description', text: m[1].trim().slice(0, 5000) };
+  m = raw.match(/^(?:add|use)\s+(?:the\s+tool\s+|tool\s+)?(.+?)(?:\s+to\s+(?:our|the)\s+tools?)?$/i);
+  if (m && /\btool/i.test(raw)) return { kind: 'add_tool', name: m[1].replace(/\b(?:the\s+)?tools?\b/gi, '').trim().slice(0, 60) };
+  m = raw.match(/^(?:remove|drop|delete)\s+(?:the\s+tool\s+|tool\s+)?(.+?)(?:\s+from\s+(?:our|the)\s+tools?)?$/i);
+  if (m) return { kind: 'remove_tool', name: m[1].replace(/\b(?:the\s+)?tools?\b/gi, '').trim().slice(0, 60) };
+  for (const key of WORLD_SOCIAL_KEYS) {
+    const sm = raw.match(new RegExp(`^${key}\\s*:?\\s+(\\S+)$`, 'i'));
+    if (sm) {
+      const url = normalizeUrl(sm[1]);
+      if (url) return { kind: 'set_social', key, url };
+    }
+  }
+  // A bare pasted URL: classify by hostname when it maps to a platform.
+  const bare = normalizeUrl(raw);
+  if (bare && !/\s/.test(raw)) {
+    const host = new URL(bare).hostname.replace(/^www\./, '');
+    const key = (['twitter', 'instagram', 'soundcloud', 'spotify', 'linkedin', 'substack'] as const)
+      .find((k) => host.includes(k === 'twitter' ? 'x.com' : k) || host.includes(k));
+    return { kind: 'set_social', key: key ?? 'website', url: bare };
+  }
+  return { kind: 'unknown', raw };
+}
+
 /* ── LLM-output clamp — defense on both sides of the wire ──────────── */
 
 export function clampWorldFields(raw: unknown): Partial<DraftWorld> {
