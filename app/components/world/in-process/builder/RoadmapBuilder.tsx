@@ -1,30 +1,29 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { BuilderCommand, DraftRoadmap, TemplateId } from '@/lib/roadmap-builder/types';
 import { applyCommand, draftToBatchPayload, matchMilestone, parseUtterance, parseDollars } from '@/lib/roadmap-builder/commands';
 import { parseSeed } from '@/lib/roadmap-builder/parse';
 import { TEMPLATES, instantiate, templateById } from '@/lib/roadmap-builder/templates';
 import { addMonths } from '@/lib/roadmap-builder/dates';
+import { BuilderShell } from '../../../builder/BuilderShell';
+import { ChatPane } from '../../../builder/ChatPane';
+import { useBuilderChat } from '../../../builder/useBuilderChat';
 import { EraDateField, type Precision } from '../../InProcessFields';
-import { ORANGE } from '../constants';
 import type { EraMilestoneView, EraView, ProjectOption } from '../types';
 import { COPY, CHIP, type Stage } from './script';
-import { ChatPane, type ChatMessage, type Chip } from './ChatPane';
+import type { Chip } from './chips';
 import { DraftCanvas } from './DraftCanvas';
 
 /* The Roadmap Builder — a chat that assembles a roadmap on a live canvas.
- * No LLM behind it: chips cover every forward path and the free-text parser
- * (lib/roadmap-builder) is sugar on top. Nothing touches the network until
- * Save, which fires ONE batch call.
+ * Chrome (portal/scroll-lock/layouts) comes from the shared BuilderShell;
+ * this file owns the conversation. No LLM behind it: chips cover every
+ * forward path and the free-text parser (lib/roadmap-builder) is sugar.
+ * Nothing touches the network until Save, which fires ONE batch call.
  *
  * The draft lives in a ref mirrored to state: the reducer runs synchronously
  * against the ref (chat handlers need the fresh draft immediately), state
  * only drives rendering. */
-
-let msgId = 0;
-const nextId = () => `bm${++msgId}`;
 
 export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFund, accessToken, onClose, onCreated }: {
   worldId: string;
@@ -39,40 +38,33 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
   onClose: () => void;
   onCreated: (era: EraView) => void;
 }) {
-  const [mounted, setMounted] = useState(false);
-  // The opening turn is computed in state initializers (not an effect) so
-  // StrictMode's double-run in dev can't duplicate the intro message.
-  const opening = useRef<{ stage: Stage; text: string; chips: Chip[] } | null>(null);
-  if (!opening.current) {
-    const scoped = projectScope ? projects.find((p) => p.id === projectScope) ?? null : null;
-    if (scoped) {
-      opening.current = { stage: 'describe', text: COPY.describeExisting(scoped.name), chips: TEMPLATES.map((t) => ({ label: t.chipLabel, t: 'template' as const, id: t.id })) };
-    } else if (projects.length === 0) {
-      opening.current = { stage: 'describe', text: COPY.describeNew, chips: TEMPLATES.map((t) => ({ label: t.chipLabel, t: 'template' as const, id: t.id })) };
-    } else {
-      opening.current = {
-        stage: 'project', text: COPY.intro,
-        chips: [
-          ...projects.slice(0, 6).map((p) => ({ label: p.name, t: 'project' as const, id: p.id, name: p.name })),
-          { label: CHIP.newProject, t: 'new_project' as const },
-          { label: CHIP.worldWide, t: 'world_wide' as const },
-        ],
-      };
-    }
-  }
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [{ id: nextId(), role: 'bot', text: opening.current!.text }]);
-  const [chips, setChips] = useState<Chip[]>(() => opening.current!.chips);
-  const [stage, setStage] = useState<Stage>(() => opening.current!.stage);
+  const scopedProject = projectScope ? projects.find((p) => p.id === projectScope) ?? null : null;
+
+  const templateChips = useMemo<Chip[]>(
+    () => TEMPLATES.map((t) => ({ label: t.chipLabel, t: 'template' as const, id: t.id })),
+    [],
+  );
+
+  const { messages, chips, setChips, typing, pushUser, pushBot } = useBuilderChat<Chip>(() => {
+    if (scopedProject) return { text: COPY.describeExisting(scopedProject.name), chips: templateChips };
+    if (projects.length === 0) return { text: COPY.describeNew, chips: templateChips };
+    return {
+      text: COPY.intro,
+      chips: [
+        ...projects.slice(0, 6).map((p) => ({ label: p.name, t: 'project' as const, id: p.id, name: p.name })),
+        { label: CHIP.newProject, t: 'new_project' as const },
+        { label: CHIP.worldWide, t: 'world_wide' as const },
+      ],
+    };
+  });
+
+  const [stage, setStage] = useState<Stage>(() =>
+    (scopedProject || projects.length === 0) ? 'describe' : 'project');
   const [draft, setDraftState] = useState<DraftRoadmap | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pendingIntent, setPendingIntent] = useState<null | { type: 'add' } | { type: 'rename'; index: number } | { type: 'goal'; index: number }>(null);
-  // Replies in flight — drives the typing indicator.
-  const [pendingBots, setPendingBots] = useState(0);
-  // Stashed after a save whose funding goals partially failed, so the
-  // "take me to it" chip can still land the user on their new roadmap.
-  const createdEra = useRef<EraView | null>(null);
 
   const draftRef = useRef<DraftRoadmap | null>(null);
   const setDraft = useCallback((d: DraftRoadmap | null) => {
@@ -86,30 +78,10 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
   );
   // Whether the seed still needs a timeframe question.
   const needTimeframe = useRef(true);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Stashed after a save whose funding goals partially failed, so the
+  // "take me to it" chip can still land the user on their new roadmap.
+  const createdEra = useRef<EraView | null>(null);
 
-  const scopedProject = projectScope ? projects.find((p) => p.id === projectScope) ?? null : null;
-
-  /* ── Chat helpers ─────────────────────────────────────────────────── */
-  const pushUser = useCallback((text: string) => {
-    setMessages((m) => [...m, { id: nextId(), role: 'user', text }]);
-  }, []);
-  // Bot lines land on a beat with typing dots first, so turns read as a
-  // being composing a thought rather than a form validating.
-  const pushBot = useCallback((text: string, delay = 550) => {
-    setPendingBots((n) => n + 1);
-    const t = setTimeout(() => {
-      setPendingBots((n) => Math.max(0, n - 1));
-      setMessages((m) => [...m, { id: nextId(), role: 'bot', text }]);
-    }, delay);
-    timers.current.push(t);
-  }, []);
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
-
-  const templateChips = useMemo<Chip[]>(
-    () => TEMPLATES.map((t) => ({ label: t.chipLabel, t: 'template' as const, id: t.id })),
-    [],
-  );
   const refineChips = useCallback((): Chip[] => [
     { label: CHIP.addMilestone, t: 'add' },
     { label: CHIP.changeTimeline, t: 'timeline' },
@@ -118,30 +90,6 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     ...(canFund ? [{ label: CHIP.fund, t: 'fund' as const }] : []),
     { label: CHIP.save, t: 'save', accent: true },
   ], [canFund]);
-
-  /* ── Portal mount gate (SSR-safe) ─────────────────────────────────── */
-  useEffect(() => { setMounted(true); }, []);
-
-  /* ── Body scroll lock (iOS-proof, same recipe as MessagesModal) ───── */
-  useEffect(() => {
-    const scrollY = window.scrollY;
-    const { style } = document.body;
-    const prev = { position: style.position, top: style.top, width: style.width, overflow: style.overflow };
-    const prevHtmlOverflow = document.documentElement.style.overflow;
-    style.position = 'fixed';
-    style.top = `-${scrollY}px`;
-    style.width = '100%';
-    style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      style.position = prev.position;
-      style.top = prev.top;
-      style.width = prev.width;
-      style.overflow = prev.overflow;
-      document.documentElement.style.overflow = prevHtmlOverflow;
-      window.scrollTo(0, scrollY);
-    };
-  }, []);
 
   /* ── Draft plumbing ───────────────────────────────────────────────── */
 
@@ -170,13 +118,13 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
       }
     }
     setChips(refineChips());
-  }, [setDraft, pushBot, refineChips]);
+  }, [setDraft, pushBot, setChips, refineChips]);
 
   const enterRefine = useCallback((withIntro: boolean) => {
     setStage('refine');
     if (withIntro && draftRef.current) pushBot(COPY.firstDraft(draftRef.current), 420);
     setChips(refineChips());
-  }, [pushBot, refineChips]);
+  }, [pushBot, setChips, refineChips]);
 
   // After the draft exists, route to whichever question is still open.
   const advanceFromSeed = useCallback(() => {
@@ -199,7 +147,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     } else {
       enterRefine(true);
     }
-  }, [pushBot, enterRefine]);
+  }, [pushBot, setChips, enterRefine]);
 
   const seedDraft = useCallback((templateId: TemplateId, opts: {
     projectName: string | null; quantity: number | null;
@@ -311,7 +259,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
       pushBot(COPY.saveFailed(null), 200);
       setChips([{ label: CHIP.tryAgain, t: 'try_again' }, { label: CHIP.keepEditing, t: 'keep_editing' }]);
     }
-  }, [saving, worldId, privyId, canFund, accessToken, onCreated, pushBot]);
+  }, [saving, worldId, privyId, canFund, accessToken, onCreated, pushBot, setChips]);
 
   /* ── Input handling ───────────────────────────────────────────────── */
   const handleText = useCallback((raw: string) => {
@@ -398,7 +346,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
       case 'skip_name': {
         // Project borrows the era title so nothing ships unnamed.
         const d = draftRef.current;
-        if (d) setDraft({ ...d, project: d.project.mode === 'new' ? { mode: 'new', name: d.title } : d.project });
+        if (d) setDraft({ ...d, project: d.project.mode === 'new' ? { mode: 'new' as const, name: d.title } : d.project });
         advanceFromSeed();
         break;
       }
@@ -479,7 +427,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
         setChips(refineChips());
         break;
     }
-  }, [stage, pushUser, pushBot, templateChips, seedDraft, dispatch, advanceFromSeed, enterRefine, refineChips, save, setDraft, onCreated]);
+  }, [stage, pushUser, pushBot, setChips, templateChips, seedDraft, dispatch, advanceFromSeed, enterRefine, refineChips, save, setDraft, onCreated]);
 
   // Silent edits from the canvas tap-editor — same reducer, no chat noise.
   const handleCanvasCommand = useCallback((cmd: BuilderCommand) => {
@@ -494,14 +442,6 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     if (draftRef.current && !window.confirm('Discard this draft?')) return;
     onClose();
   }, [saving, onClose, onCreated]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [requestClose]);
-
-  if (!mounted) return null;
 
   const datePicker = showDatePicker ? (
     <div className="border border-ink/15 rounded-sm p-3 mb-2 bg-[var(--page-bg)]">
@@ -520,64 +460,30 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     </div>
   ) : null;
 
-  const header = (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10 shrink-0">
-      <span className="font-mono text-[10px] font-bold uppercase tracking-[3px]" style={{ color: ORANGE }}>
-        <span className="ipb-orb">✦</span> Roadmap Builder
-      </span>
-      <button onClick={requestClose} aria-label="Close" className="font-mono text-[16px] leading-none text-ink/50 hover:text-ink cursor-pointer bg-transparent border-none px-1">×</button>
-    </div>
-  );
-
-  const chat = (
-    <ChatPane
-      messages={messages}
-      chips={chips}
-      onChip={handleChip}
-      onSubmit={handleText}
-      disabled={stage === 'saving' || stage === 'done'}
-      typing={pendingBots > 0}
-      extra={datePicker}
+  return (
+    <BuilderShell
+      title="Roadmap Builder"
+      onRequestClose={requestClose}
+      chat={
+        <ChatPane
+          messages={messages}
+          chips={chips}
+          onChip={handleChip}
+          onSubmit={handleText}
+          disabled={stage === 'saving' || stage === 'done'}
+          typing={typing}
+          extra={datePicker}
+        />
+      }
+      canvas={
+        <DraftCanvas
+          draft={draft}
+          selectedKey={selectedKey}
+          onSelect={setSelectedKey}
+          onCommand={handleCanvasCommand}
+          canFund={canFund}
+        />
+      }
     />
   );
-  const canvas = (
-    <DraftCanvas
-      draft={draft}
-      selectedKey={selectedKey}
-      onSelect={setSelectedKey}
-      onCommand={handleCanvasCommand}
-      canFund={canFund}
-    />
-  );
-
-  const content = (
-    <>
-      {/* Backdrop — lvh so a late keyboard frame never reveals the page. */}
-      <div className="fixed inset-0 z-[2300] bg-black/70 backdrop-blur-[2px]" style={{ height: '100lvh' }} onClick={requestClose} />
-      {/* Mobile: full-bleed takeover. Plain flex column — the browser handles
-       * the keyboard (CLAUDE.md rule 3); inputs are 16px so iOS won't zoom. */}
-      <div className="sm:hidden fixed inset-0 z-[2301] flex flex-col bg-[var(--page-bg)]" style={{ height: '100dvh', paddingTop: 'var(--safe-top, 0px)' }}>
-        {header}
-        <div className="shrink-0 max-h-[42%] overflow-y-auto border-b border-ink/10" style={{ WebkitOverflowScrolling: 'touch' }}>
-          {canvas}
-        </div>
-        <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
-      </div>
-      {/* Desktop: centered two-pane card — chat left, canvas right. */}
-      <div className="hidden sm:flex fixed inset-0 z-[2301] items-center justify-center p-6 pointer-events-none">
-        <div
-          className="takeover-card pointer-events-auto w-full max-w-5xl h-[min(720px,88lvh)] grid grid-cols-[minmax(320px,1fr)_1.2fr] bg-[var(--page-bg)] border border-ink/10 rounded-2xl overflow-hidden"
-          style={{ boxShadow: `0 24px 80px rgba(0,0,0,0.5), 0 0 48px ${'color-mix(in srgb, var(--orange) 10%, transparent)'}` }}
-        >
-          <div className="flex flex-col min-h-0 border-r border-ink/10">
-            {header}
-            <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
-          </div>
-          <div className="overflow-y-auto min-h-0">{canvas}</div>
-        </div>
-      </div>
-    </>
-  );
-
-  return createPortal(content, document.body);
 }
