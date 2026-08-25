@@ -39,15 +39,20 @@ export async function extractStructured(opts: {
   const c = getClient();
   if (!c) return { configured: false };
   try {
+    const model = ANTHROPIC_MODEL();
+    // `effort` cuts latency/cost on the Opus/Sonnet-5/Fable tiers but is
+    // REJECTED with a 400 on Haiku 4.5 and Sonnet 4.5 — send it only where
+    // it's supported, so pinning ANTHROPIC_MODEL to haiku doesn't break.
+    const supportsEffort = !/haiku|sonnet-4-5/.test(model);
     const response = await c.messages.parse(
       {
-        model: ANTHROPIC_MODEL(),
+        model,
         max_tokens: 1000,
         system: opts.system,
         messages: [{ role: 'user', content: opts.text }],
         output_config: {
           format: zodOutputFormat(opts.schema),
-          effort: 'low',
+          ...(supportsEffort ? { effort: 'low' as const } : {}),
         },
       },
       { timeout: 5000, maxRetries: 0 },
