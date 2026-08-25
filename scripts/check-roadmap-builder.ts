@@ -9,7 +9,8 @@
 import { parseNaturalDate, parseDateRange, distributeDates } from '../lib/roadmap-builder/dates';
 import { parseSeed } from '../lib/roadmap-builder/parse';
 import { TEMPLATES, templateById, instantiate } from '../lib/roadmap-builder/templates';
-import { parseUtterance, applyCommand, matchMilestone, draftToBatchPayload, parseDollars } from '../lib/roadmap-builder/commands';
+import { stripFillers, parseUtterance, applyCommand, matchMilestone, draftToBatchPayload, parseDollars } from '../lib/roadmap-builder/commands';
+import { clampRoadmapPlan, planToTemplate } from '../lib/roadmap-builder/plan';
 import { draftFromEra, diffToPatches, keyForId } from '../lib/roadmap-builder/edit';
 import type { EraView } from '../app/components/world/in-process/types';
 import { MAX_COUNTABLE_REPEATS } from '../lib/roadmap-builder/types';
@@ -242,6 +243,32 @@ check('re-flow: pinned milestone date untouched (sortOrder-only ok)',
     .every((p) => !('startDate' in (p as { body: object }).body)), true);
 check('re-flow: unpinned milestones patched', flow.filter((p) => p.kind === 'ms-put').length >= 1, true);
 check('keyForId round trip', keyForId('abc'), 'ex-abc');
+
+/* ── Loom feedback (Latasha, Aug 25): fillers, corrections, durations, plans ── */
+console.log('\nfeedback-round:');
+const NOWD = new Date('2026-08-24T12:00:00');
+check('filler: actually call it', parseUtterance('so actually call it Tosh55.xyz', NOWD),
+  { kind: 'set_era_title', title: 'Tosh55.xyz' });
+check('filler: lets say month-year', parseUtterance("let's say September 2027", NOWD),
+  { kind: 'set_timeframe', start: null, end: { value: '2027-09-01', precision: 'month' } });
+check('filler: i want to make it a year', parseUtterance('I want to make it a year', NOWD),
+  { kind: 'set_timeframe', start: null, end: { value: '2027-08-01', precision: 'month' } });
+check('duration: for 6 months', parseUtterance('for 6 months', NOWD),
+  { kind: 'set_timeframe', start: null, end: { value: '2027-02-01', precision: 'month' } });
+check('era rename: rename it to', parseUtterance('rename it to Night Garden', NOWD),
+  { kind: 'set_era_title', title: 'Night Garden' });
+check('milestone rename untouched', parseUtterance('rename mixing to final mix', NOWD),
+  { kind: 'rename_milestone', ref: { title: 'mixing' }, title: 'final mix' });
+check('stripFillers leaves commands alone', stripFillers('add vinyl drop in March'), 'add vinyl drop in March');
+check("lets-call-this stays a duration", parseUtterance("let's call this for 6 months", NOWD).kind, 'set_timeframe');
+const planOk = clampRoadmapPlan({ projectName: '  Tosh55.xyz ', months: 99.7, milestones: ['Design the core flow', ' Design the core flow ', 'Build the MVP', 42, 'Launch'] });
+check('plan clamp: dedupe + trim + month cap', planOk,
+  { projectName: 'Tosh55.xyz', months: 36, milestones: ['Design the core flow', 'Build the MVP', 'Launch'] });
+check('plan clamp: one milestone is not an arc', clampRoadmapPlan({ milestones: ['Ship it'] }), null);
+check('plan clamp: junk null', clampRoadmapPlan('lol'), null);
+const ptpl = planToTemplate(planOk!);
+check('plan template fracs span 0..1', ptpl.milestones.map((p) => p.frac), [0, 0.5, 1]);
+check('plan template months', ptpl.defaultSpanMonths, 36);
 
 if (failures > 0) {
   console.error(`\n❌ ${failures} roadmap-builder assertion(s) failed.\n`);
