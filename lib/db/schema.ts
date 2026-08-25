@@ -129,7 +129,11 @@ export const events = pgTable('events', {
   rsvpClosed: boolean('rsvp_closed').notNull().default(false),  // host closed registration
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  // Every listing filters published events and sorts by dateIso.
+  index('events_published_date_iso_idx').on(t.published, t.dateIso),
+  index('events_city_idx').on(t.city),
+]);
 
 // Grants
 export const grants = pgTable('grants', {
@@ -173,7 +177,10 @@ export const tools = pgTable('tools', {
   published: boolean('published').default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  // Profile stamps count tools-submitted per user on every profile view.
+  index('tools_submitted_by_idx').on(t.submittedBy),
+]);
 
 // Follows - user-to-user follow relationships
 export const follows = pgTable('follows', {
@@ -251,6 +258,8 @@ export const eventHosts = pgTable('event_hosts', {
 }, (t) => [
   index('event_hosts_event_id_idx').on(t.eventId),
   index('event_hosts_user_id_idx').on(t.userId),
+  // /api/events?worldId= resolves a world's events through this column.
+  index('event_hosts_world_id_idx').on(t.worldId),
 ]);
 
 // Event co-host invitations
@@ -301,7 +310,10 @@ export const eventInvites = pgTable('event_invites', {
   sent: boolean('sent').notNull().default(false),        // true once auto-delivered
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  // Profile stamps count invites-sent per user on every profile view.
+  index('event_invites_invited_by_status_idx').on(t.invitedBy, t.status),
+]);
 
 // Custom RSVP questions per event (Luma-style registration form). Hosts define
 // them; answers are captured into eventRsvps.responses at registration time.
@@ -888,7 +900,10 @@ export const tickets = pgTable('tickets', {
   status: text('status').notNull().default('valid'),     // 'valid'|'checked_in'|'refunded'|'void'
   checkedInAt: timestamp('checked_in_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('tickets_event_id_idx').on(t.eventId),
+  index('tickets_owner_id_idx').on(t.ownerId),
+]);
 
 // Short links — maps a compact code to an internal path so shareable URLs can
 // be tiny (topia.vision/s/<code>). Deduped by targetPath (unique) so a given

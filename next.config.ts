@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import bundleAnalyzer from '@next/bundle-analyzer';
+
+// ANALYZE=true npm run build → interactive bundle report. The perf overhaul's
+// bundle wins are proven with this, not eyeballed.
+const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
 
 const nextConfig: NextConfig = {
   // Next allows one `next dev` per dist dir (.next/dev/lock). A second
@@ -17,6 +22,9 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
+    // Tree-shake the heavyweights at the import level. Privy's full removal
+    // from the root layout is a later PR; this is the free partial win.
+    optimizePackageImports: ['@privy-io/react-auth', 'react-markdown'],
   },
   // Event editing moved out of the dashboard shell to a standalone route that
   // matches the create flow. Redirect any old/bookmarked links.
@@ -31,4 +39,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
