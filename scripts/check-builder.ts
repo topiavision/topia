@@ -14,6 +14,10 @@ import {
   matchMemberName, parseProjectUtterance, clampProjectFields, projectToPayload, emptyProjectDraft,
   type MemberOption,
 } from '../lib/builder/project';
+import {
+  parseEventWhen, parseTimeToken, parseCapacity, parseQuestionList, parseTierList,
+  clampEventFields, draftToComposer, emptyEventDraft,
+} from '../lib/builder/event';
 
 let failures = 0;
 function check(label: string, actual: unknown, expected: unknown) {
@@ -126,6 +130,71 @@ const payload = projectToPayload(pd, 'w1', 'p1');
 check('payload tags carry tool: prefix', payload.tags, ['film', 'tool:Figma', 'tool:Ableton']);
 check('payload credits shape', payload.credits, [{ userId: 'u1', role: 'design' }]);
 check('payload nulls empties', payload.links, null);
+
+/* ── event engine ──────────────────────────────────────────────────── */
+console.log('\nevent:');
+const ENOW = new Date('2026-08-24T00:00:00');
+check('"7pm" → 19:00', parseTimeToken('7pm'), '19:00');
+check('"7:30 AM" → 07:30', parseTimeToken('7:30 AM'), '07:30');
+check('"19:00" stays', parseTimeToken('19:00'), '19:00');
+check('bare "7" reads as evening', parseTimeToken('7'), '19:00');
+check('"12am" → 00:00', parseTimeToken('12am'), '00:00');
+const w1 = parseEventWhen('rooftop party Sept 12, 7pm', ENOW);
+check('Sept 12 resolves future year', w1.dateIso, '2026-09-12');
+check('time captured', w1.startTime, '19:00');
+const w2 = parseEventWhen('brunch March 2, 11am-2pm', ENOW);
+check('passed month rolls to next year', w2.dateIso, '2027-03-02');
+check('range start borrows meridiem', w2.startTime, '11:00');
+check('range end', w2.endTime, '14:00');
+check('"September 12th 2027" explicit year', parseEventWhen('September 12th 2027', ENOW).dateIso, '2027-09-12');
+check('"next Friday" refuses', parseEventWhen('next Friday at 7', ENOW).dateIso, null);
+check('"9/12" refuses (ambiguous)', parseEventWhen('party on 9/12', ENOW).dateIso, null);
+check('capacity "60 people"', parseCapacity('free, 60 people'), 60);
+check('capacity "cap at 100"', parseCapacity('cap at 100'), 100);
+check('capacity absent', parseCapacity('a lovely evening'), null);
+
+const qs = parseQuestionList('their instagram and t-shirt size');
+check('instagram phrase → typed question', qs[0], { label: 'What is your Instagram?', type: 'instagram', options: [], required: false });
+check('unknown phrase → short_text with ?', qs[1].type === 'short_text' && qs[1].label.endsWith('?'), true);
+const qsel = parseQuestionList('choose a track: vinyl, tape or digital');
+check('select phrase → options', qsel[0].type === 'single_select' && qsel[0].options.length === 3, true);
+
+const tiers = parseTierList('$25 early bird limited to 50, $40 at the door');
+check('two tiers parsed', tiers.length, 2);
+check('tier 1: price+qty+name', { n: tiers[0].name, p: tiers[0].priceCents, q: tiers[0].quantityTotal },
+  { n: 'Early bird', p: 2500, q: 50 });
+check('tier 2: door, unlimited', { n: tiers[1].name, p: tiers[1].priceCents, q: tiers[1].quantityTotal },
+  { n: 'Door', p: 4000, q: null });
+
+const hallucinatedEvent = {
+  eventName: '  Rooftop Sundown  ', dateIso: 'September 12', startTime: '7pm',
+  city: 42, capacity: 999999999,
+  questions: [
+    { label: 'Pick one', type: 'single_select', options: ['only-one'] },   // <2 options → demote
+    { label: 'Your IG', type: 'instagram', options: ['junk'] },            // options stripped for non-selects
+    { label: '', type: 'short_text', options: [] },                        // empty label dropped
+  ],
+  tiers: [{ name: 'VIP', priceCents: 25.5, quantityTotal: 10 }, { name: 'OK', priceCents: 4000, quantityTotal: null }],
+  evil: 'x',
+};
+const ce = clampEventFields(hallucinatedEvent);
+check('clamp trims name', ce.eventName, 'Rooftop Sundown');
+check('clamp rejects non-ISO date', 'dateIso' in ce, false);
+check('clamp rejects non-HH:MM time', 'startTime' in ce, false);
+check('clamp drops wrong-type city + silly capacity', !('city' in ce) && !('capacity' in ce), true);
+check('clamp demotes optionless select', ce.questions?.[0].type, 'short_text');
+check('clamp strips options on non-select', ce.questions?.[1].options, []);
+check('clamp drops empty-label question', ce.questions?.length, 2);
+check('clamp drops fractional-cents tier', ce.tiers, [{ name: 'OK', priceCents: 4000, quantityTotal: null }]);
+
+const ed = { ...emptyEventDraft(), eventName: 'Rooftop', dateIso: '2026-09-12', startTime: '19:00', capacity: 60,
+  questions: qs, tiers };
+const handoff = draftToComposer(ed);
+check('handoff initial shape', { n: handoff.initial.eventName, d: handoff.initial.dateIso, c: handoff.initial.rsvpCapacity },
+  { n: 'Rooftop', d: '2026-09-12', c: 60 });
+check('handoff timezone left to browser', handoff.initial.timezone, '');
+check('handoff stages questions + tickets', handoff.initialQuestions.length === 2 && handoff.initialTickets.tiers.length === 2, true);
+check('handoff never publishes', handoff.initial.published, false);
 
 if (failures > 0) {
   console.error(`\n❌ ${failures} builder assertion(s) failed.\n`);
