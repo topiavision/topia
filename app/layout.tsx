@@ -7,6 +7,7 @@ import { ToastProvider } from "./components/Toast";
 import ThemeInit from "./components/ThemeInit";
 import CookieConsent from "./components/CookieConsent";
 import FeedbackWidget from "./components/FeedbackWidget";
+import CommandPalette from './components/CommandPalette';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://topia.vision"),
@@ -111,6 +112,8 @@ export default function RootLayout({
           <ToastProvider>
             {children}
             <FeedbackWidget />
+            {/* ⌘K — global, additive; visible triggers arrive with the nav rework. */}
+            <CommandPalette />
           </ToastProvider>
         </PrivyProviderWrapper>
         <CookieConsent />

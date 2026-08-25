@@ -89,6 +89,18 @@ export default function TopNav({ onOpenMessages }: { onOpenMessages: () => void 
             </span>
           </Link>
         )}
+        {/* Search — opens the ⌘K palette. Search had NO desktop entry point
+            at all before this (it was mobile-pill-only). */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('topia:open-cmdk'))}
+          aria-label="Search (⌘K)"
+          className="flex items-center gap-2 rounded-lg border px-3 py-1.5 cursor-pointer bg-transparent hover:opacity-100 opacity-70 transition-opacity"
+          style={{ borderColor: 'var(--nav-border)', color: 'var(--page-text)' }}
+        >
+          <span className="text-[13px] leading-none">⌕</span>
+          <span className="font-mono text-[11px] tracking-wider hidden lg:inline" style={{ opacity: 0.6 }}>Search</span>
+          <kbd className="font-mono text-[9px] tracking-[1px] px-1 py-px rounded border leading-none" style={{ borderColor: 'var(--nav-border)', opacity: 0.55 }}>⌘K</kbd>
+        </button>
         {/* Menu dropdown */}
         <div className="relative">
           <button
