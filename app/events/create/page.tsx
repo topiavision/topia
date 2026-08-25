@@ -34,20 +34,20 @@ export default function CreateEventPage() {
 
   return (
     <>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-[calc(var(--nav-height)+16px)] md:pt-4">
-        <AssistantBar
-          id="tour-event-assistant"
-          placeholder="Describe your event — “rooftop listening party, Sept 12, 7pm, 60 people”…"
-          suggestions={['A listening party next month', 'A gallery opening, free entry', 'A ticketed workshop']}
-          onLaunch={(seed) => setBuilderSeed(seed)}
-        />
-      </div>
       <EventComposer
         key={seedVersion}
         mode="create"
         initial={prefill?.initial ?? EMPTY}
         initialQuestions={prefill?.initialQuestions}
         initialTickets={prefill?.initialTickets}
+        topSlot={
+          <AssistantBar
+            id="tour-event-assistant"
+            placeholder="Describe your event — “rooftop listening party, Sept 12, 7pm, 60 people”…"
+            suggestions={['A listening party next month', 'A gallery opening, free entry', 'A ticketed workshop']}
+            onLaunch={(seed) => setBuilderSeed(seed)}
+          />
+        }
       />
       {builderSeed !== null && (
         <EventBuilder

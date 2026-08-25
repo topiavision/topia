@@ -34,9 +34,20 @@ export function buildCommands(opts: {
   // ── Actions ──
   if (authenticated) {
     cmds.push(
-      { id: 'create-world', label: 'Create a world', group: 'Actions', glyph: '+', keywords: 'new start build' },
-      { id: 'create-event', label: 'Create an event', group: 'Actions', glyph: '+', keywords: 'new host party show' },
+      // These land on bot-first pages — the ✦ assistant takes it from there.
+      { id: 'create-world', label: 'Create a world', group: 'Actions', glyph: '+', keywords: 'new start build', href: '/dashboard/create-world' },
+      { id: 'create-event', label: 'Create an event', group: 'Actions', glyph: '+', keywords: 'new host party show gig', href: '/events/create' },
+      { id: 'create-project', label: 'Add a project', group: 'Actions', glyph: '+', keywords: 'new work portfolio roadmap milestone', href: '/dashboard/worlds' },
+      { id: 'submit-tool', label: 'Submit a tool', group: 'Actions', glyph: '⚒', keywords: 'add directory software recommend', href: '/resources/tools?submit=1' },
+      { id: 'edit-profile', label: 'Edit your profile', group: 'Actions', glyph: '✎', keywords: 'bio avatar settings socials passport', href: '/profile' },
     );
+    if (username) {
+      cmds.push({
+        id: 'copy-profile-link', label: 'Copy your profile link', group: 'Actions', glyph: '⧉',
+        keywords: 'share url passport link',
+        run: () => { void navigator.clipboard?.writeText(`${window.location.origin}/@${username}`); },
+      });
+    }
   }
   cmds.push({
     id: 'toggle-theme', label: 'Toggle light / dark', group: 'Actions', glyph: '◐',
@@ -67,6 +78,7 @@ export function buildCommands(opts: {
         id: 'go-passport', label: 'Your passport', group: 'Go to', glyph: '❒',
         href: username ? `/profile/${username}` : '/profile', keywords: 'profile me account',
       },
+      { id: 'go-messages', label: 'Messages', group: 'Go to', glyph: '✉', href: '/messages', keywords: 'dm chat inbox conversations' },
     );
     if (features.includes('funding')) {
       cmds.push({ id: 'go-payouts', label: 'Payouts', group: 'Go to', glyph: '⇄', href: '/dashboard/payouts', keywords: 'stripe money funding connect bank' });
