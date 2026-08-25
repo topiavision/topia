@@ -38,11 +38,12 @@ export interface EventComposerInitial {
   rsvpApprovalRequired: boolean;
 }
 
-interface DraftQuestion { id?: string; label: string; type: string; options: string[]; required: boolean; }
+export interface DraftQuestion { id?: string; label: string; type: string; options: string[]; required: boolean; }
 
 // Small mono glyph per question type, shown on each question card.
 const QTYPE_GLYPH: Record<string, string> = {
   short_text: 'A', long_text: '¶', single_select: '◉', multi_select: '☰', checkbox: '☑', socials: '@',
+  instagram: '@', twitter: '@', roles: '✳',
 };
 
 const ACCENTS = [
@@ -208,7 +209,14 @@ function formatTimeForStorage(time24: string): string {
   return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
-export default function EventComposer({ mode, initial }: { mode: 'create' | 'edit'; initial: EventComposerInitial }) {
+export default function EventComposer({ mode, initial, initialQuestions, initialTickets }: {
+  mode: 'create' | 'edit';
+  initial: EventComposerInitial;
+  /** Create-mode prefill from the Event Builder — staged exactly as if the
+   * host had added them by hand. Ignored in edit mode (questions load live). */
+  initialQuestions?: DraftQuestion[];
+  initialTickets?: StagedTickets;
+}) {
   const router = useRouter();
   const { user, authenticated, ready } = usePrivy();
   const { worldMemberships } = useUserProfile();
@@ -248,16 +256,16 @@ export default function EventComposer({ mode, initial }: { mode: 'create' | 'edi
   const [externalSource, setExternalSource] = useState<string | null>(null);
 
   // Registration settings + custom questions.
-  const [showReg, setShowReg] = useState(false);
+  const [showReg, setShowReg] = useState((initialQuestions?.length ?? 0) > 0 || initial.rsvpCapacity != null);
 
   // Paid tickets + promo codes (behind PAYMENTS_ENABLED). Create mode stages
   // them locally and persists after the event row exists; edit mode manages
   // live via the ticket-types / promo-codes APIs inside TicketSetup.
-  const [showTix, setShowTix] = useState(false);
-  const [ticketDraft, setTicketDraft] = useState<StagedTickets>(EMPTY_STAGED);
+  const [showTix, setShowTix] = useState((initialTickets?.tiers.length ?? 0) > 0);
+  const [ticketDraft, setTicketDraft] = useState<StagedTickets>(initialTickets ?? EMPTY_STAGED);
   const [capacity, setCapacity] = useState(initial.rsvpCapacity != null ? String(initial.rsvpCapacity) : '');
   const [approval, setApproval] = useState(initial.rsvpApprovalRequired);
-  const [questions, setQuestions] = useState<DraftQuestion[]>([]);
+  const [questions, setQuestions] = useState<DraftQuestion[]>(mode === 'create' ? (initialQuestions ?? []) : []);
   const [qLabel, setQLabel] = useState('');
   const [qType, setQType] = useState('short_text');
   const [qOptions, setQOptions] = useState('');
@@ -402,7 +410,14 @@ export default function EventComposer({ mode, initial }: { mode: 'create' | 'edi
     [worldMemberships]);
 
   useEffect(() => {
-    fetch('/api/events?cities=true').then((r) => r.json()).then((d) => setCities(d.cities || [])).catch(console.error);
+    fetch('/api/events?cities=true').then((r) => r.json()).then((d) => {
+      const list: string[] = d.cities || [];
+      setCities(list);
+      if (initial.city && !list.includes(initial.city)) {
+        setShowCustomCity(true);
+        setCustomCity(initial.city);
+      }
+    }).catch(console.error);
   }, []);
 
   // Redraw placeholder cover preview when name, palette, or canvas mount state changes.
@@ -785,7 +800,7 @@ export default function EventComposer({ mode, initial }: { mode: 'create' | 'edi
         {/* Title */}
         <input
           type="text" value={eventName} onChange={(e) => setEventName(e.target.value)}
-          placeholder="Untitled event" autoFocus={mode === 'create'}
+          placeholder="Untitled event"
           className="w-full bg-transparent border-none outline-none font-basement font-black uppercase placeholder:opacity-30 mb-5 px-0"
           style={{ fontSize: 'clamp(32px, 6vw, 64px)', lineHeight: 0.95, letterSpacing: '-0.02em', color: 'var(--foreground)' }}
         />
