@@ -33,6 +33,9 @@ export interface DraftMilestone {
    * through /api/funding/goals AFTER the roadmap exists, never in the batch. */
   goalCents: number | null;
   goalBlurb: string | null;
+  /** Creator-entered money raised OUTSIDE Topia (Latashá's brief) — rides the
+   * same /api/funding/goals save as the goal itself. */
+  goalExternalCents: number | null;
 }
 
 export type DraftProject =
@@ -64,7 +67,8 @@ export type BuilderCommand =
   | { kind: 'rename_milestone'; ref: MilestoneRef; title: string }
   | { kind: 'set_milestone_date'; ref: MilestoneRef; start: ParsedDate | null; end: ParsedDate | null }
   | { kind: 'set_status'; ref: MilestoneRef; status: MilestoneStatus }
-  | { kind: 'set_goal'; ref: MilestoneRef; cents: number | null; blurb?: string | null }
+  | { kind: 'set_goal'; ref: MilestoneRef; cents: number | null; blurb?: string | null; externalCents?: number | null }
+  | { kind: 'set_milestone_description'; ref: MilestoneRef; text: string | null }
   | { kind: 'move_milestone'; ref: MilestoneRef; to: number | 'first' | 'last' | 'up' | 'down' }
   | { kind: 'set_era_title'; title: string }
   | { kind: 'set_era_description'; text: string }

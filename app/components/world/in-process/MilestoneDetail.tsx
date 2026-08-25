@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { FundingMeter } from './funding/FundingMeter';
 import { BackMilestoneModal } from './funding/BackMilestoneModal';
 import { usd } from './funding/format';
-import type { FundingGoalView } from './funding/types';
+import { totalRaisedCents, type FundingGoalView } from './funding/types';
 /* ── Inline milestone detail — appears under the timeline when a node
  * card is selected; the process log below filters to match. ─────────── */
 export function MilestoneDetail({ m, index, updateCount, canEdit, goal, acceptingSupport, worldTitle, privyId, onEdit, onClose }: {
@@ -43,9 +43,18 @@ export function MilestoneDetail({ m, index, updateCount, canEdit, goal, acceptin
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={m.imageUrl} alt="" className="w-full sm:w-[220px] max-h-[160px] object-cover rounded-sm" />
         )}
-        {m.description && <p className="font-mono text-[12.5px] text-ink/70 leading-relaxed flex-1 min-w-[200px]">{m.description}</p>}
+        {(m.details || m.description) && (
+          <div className="flex-1 min-w-[200px]">
+            {m.description && <p className="font-mono text-[12.5px] text-ink/70 leading-relaxed">{m.description}</p>}
+            {/* The full picture — multi-line, whitespace kept. The one-liner
+                above stays the summary; this is the room the brief asked for. */}
+            {m.details && (
+              <p className="font-mono text-[12px] text-ink/60 leading-relaxed mt-2 whitespace-pre-wrap">{m.details}</p>
+            )}
+          </div>
+        )}
       </div>
-      {goal && (goal.goalCents != null || goal.raisedCents > 0) && (
+      {goal && (goal.goalCents != null || totalRaisedCents(goal) > 0) && (
         <div
           className="mt-3.5 rounded-lg px-4 py-3.5"
           style={{
@@ -55,19 +64,25 @@ export function MilestoneDetail({ m, index, updateCount, canEdit, goal, acceptin
         >
           <p>
             <span className="font-mono text-[20px] font-bold tabular-nums" style={{ color: 'var(--accent-ink)' }}>
-              {usd(goal.raisedCents)}
+              {usd(totalRaisedCents(goal))}
             </span>
             {goal.goalCents != null && (
               <span className="font-mono text-[13px] text-ink/45"> of {usd(goal.goalCents)} goal</span>
             )}
           </p>
           <FundingMeter
-            raisedCents={goal.raisedCents}
+            raisedCents={totalRaisedCents(goal)}
             goalCents={goal.goalCents}
             patronCount={goal.patronCount}
             size="lg"
             className="mt-2.5"
           />
+          {/* Which part came from outside Topia — always labeled, per the brief. */}
+          {(goal.externalRaisedCents ?? 0) > 0 && (
+            <p className="font-mono text-[10.5px] text-ink/45 mt-1.5">
+              incl. {usd(goal.externalRaisedCents!)} raised outside Topia
+            </p>
+          )}
           {goal.blurb && (
             <p className="font-mono text-[11.5px] text-ink/60 mt-2.5 leading-relaxed">{goal.blurb}</p>
           )}

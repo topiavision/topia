@@ -28,7 +28,7 @@ const MS_STATUSES = new Set(['done', 'now', 'upcoming', 'paused']);
 export const keyForId = (id: string) => `ex-${id}`;
 export const idForKey = (key: string): string | null => (key.startsWith('ex-') ? key.slice(3) : null);
 
-export function draftFromEra(era: EraView, goals?: Map<string, { goalCents: number | null; blurb: string | null }>): DraftRoadmap {
+export function draftFromEra(era: EraView, goals?: Map<string, { goalCents: number | null; blurb: string | null; externalRaisedCents?: number }>): DraftRoadmap {
   return {
     project: era.projectId
       ? { mode: 'existing', id: era.projectId, name: era.projectName ?? '' }
@@ -49,6 +49,7 @@ export function draftFromEra(era: EraView, goals?: Map<string, { goalCents: numb
         status: (MS_STATUSES.has(m.status) ? m.status : 'upcoming') as MilestoneStatus,
         datePinned: false,
         goalCents: goal?.goalCents ?? null,
+        goalExternalCents: goal?.externalRaisedCents ?? null,
         goalBlurb: goal?.blurb ?? null,
       };
     }),

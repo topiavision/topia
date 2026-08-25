@@ -196,6 +196,7 @@ export function instantiate(t: RoadmapTemplate, opts: {
     status: i === 0 ? 'now' : 'upcoming',
     datePinned: false,
     goalCents: null,
+    goalExternalCents: null,
     goalBlurb: null,
   }));
 

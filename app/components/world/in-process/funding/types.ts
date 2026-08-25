@@ -8,6 +8,8 @@ export interface FundingGoalView {
   /** null = supported with no target amount. Distinct from 0. */
   goalCents: number | null;
   raisedCents: number;
+  /** Creator-entered money raised OUTSIDE Topia — always labeled as external. */
+  externalRaisedCents?: number;
   patronCount: number;
   blurb: string | null;
   status: string;                  // 'open' | 'closed'
@@ -15,3 +17,8 @@ export interface FundingGoalView {
 
 /** Goals keyed by the id of the thing they fund, so a card can look itself up. */
 export type GoalMap = Map<string, FundingGoalView>;
+
+/** What the meters show: Topia backing plus creator-entered outside money. */
+export function totalRaisedCents(g: Pick<FundingGoalView, 'raisedCents' | 'externalRaisedCents'>): number {
+  return g.raisedCents + (g.externalRaisedCents ?? 0);
+}

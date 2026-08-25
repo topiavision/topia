@@ -67,6 +67,7 @@ export async function POST(request: Request) {
       return {
         title,
         description: m.description ? String(m.description).trim() : null,
+        details: m.details ? String(m.details).trim().slice(0, 4000) : null,
         startDate: cleanDate(m.startDate) ?? null,
         endDate: cleanDate(m.endDate) ?? null,
         startPrecision: cleanPrecision(m.startPrecision) ?? null,

@@ -14,7 +14,7 @@ import { PostComposer } from './PostComposer';
 import type { EraMilestoneView, EraView, ProjectOption } from './types';
 import { RoadmapFundingBar } from './funding/RoadmapFundingBar';
 import { FundingMeter } from './funding/FundingMeter';
-import type { GoalMap } from './funding/types';
+import { totalRaisedCents, type GoalMap } from './funding/types';
 /* ── One era section: header + node timeline + log ─────────────────── */
 export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit, canMint, onChanged, hideProjectChip, tourAnchor, goals, canFund, acceptingSupport, payeeMissing, worldTitle, accessToken, onGoalsChanged }: {
   era: EraView; worldId: string; worldSlug: string; projects: ProjectOption[]; privyId: string;
@@ -169,10 +169,10 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
                     * no goal renders exactly as it always has. */}
                   {(() => {
                     const g = goals?.get(m.id);
-                    if (!g || (g.goalCents == null && g.raisedCents === 0)) return null;
+                    if (!g || (g.goalCents == null && totalRaisedCents(g) === 0)) return null;
                     return (
                       <FundingMeter
-                        raisedCents={g.raisedCents}
+                        raisedCents={totalRaisedCents(g)}
                         goalCents={g.goalCents}
                         size="sm"
                         className="mt-2.5"
