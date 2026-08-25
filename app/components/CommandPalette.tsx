@@ -59,6 +59,8 @@ export default function CommandPalette() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Global shortcut. ⌘K is the muscle-memory standard; don't add more.
+  // The nav's visible search trigger opens it via a CustomEvent so the two
+  // components stay decoupled.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
@@ -66,8 +68,13 @@ export default function CommandPalette() {
         setOpen((v) => !v);
       }
     }
+    const onOpen = () => setOpen(true);
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    window.addEventListener('topia:open-cmdk', onOpen);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('topia:open-cmdk', onOpen);
+    };
   }, []);
 
   useEffect(() => {
