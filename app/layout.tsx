@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import PrivyProviderWrapper from "./components/PrivyProviderWrapper";
 import { ToastProvider } from "./components/Toast";
@@ -114,6 +115,9 @@ export default function RootLayout({
         </PrivyProviderWrapper>
         <CookieConsent />
         <Analytics />
+        {/* Core Web Vitals baseline for the perf overhaul — every win gets
+            measured against real traffic rather than inferred. */}
+        <SpeedInsights />
       </body>
     </html>
   );

@@ -4,7 +4,6 @@ import { useState, useEffect, use, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import PageShell from '../../components/PageShell';
-import LoadingScreen from '../../components/LoadingScreen';
 import ShareButton from '../../components/ShareButton';
 import FollowButton from '../../components/FollowButton';
 import { SocialIcon } from '../../components/SocialIcons';
@@ -185,7 +184,6 @@ export default function WorldPage({ params }: { params: Promise<{ slug: string }
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [allTools, setAllTools] = useState<ToolMiniData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isLoaded, setIsLoaded] = useState(false);
   const { user, authenticated } = usePrivy();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
@@ -530,9 +528,11 @@ export default function WorldPage({ params }: { params: Promise<{ slug: string }
 
   return (
     <div className="min-h-screen bg-[var(--page-bg)]">
-      <LoadingScreen onComplete={() => setIsLoaded(true)} />
       <PageShell>
-        <section className={`min-h-screen px-4 md:px-6 py-4 md:py-6 transition-opacity duration-500 ${isLoaded && !loading ? 'opacity-100' : 'opacity-0'}`}>
+        {/* Content renders the moment data arrives — the old once-per-session
+            LoadingScreen added a hard-coded ~2.3s of dead time ON TOP of the
+            fetch waterfall, so first paint was max(2.3s, data). */}
+        <section className="min-h-screen px-4 md:px-6 py-4 md:py-6">
           <div className="max-w-[var(--content-max)] mx-auto">
             {world && (
               /* overflow-clip (not hidden) so the sticky rail + tab bar keep working inside the rounded frame */

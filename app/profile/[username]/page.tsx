@@ -6,7 +6,6 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { usePrivy } from '@privy-io/react-auth';
 import PageShell from '../../components/PageShell';
-import LoadingScreen from '../../components/LoadingScreen';
 import FollowButton from '../../components/FollowButton';
 import MessageButton from '../../components/MessageButton';
 import ShareButton from '../../components/ShareButton';
@@ -91,7 +90,6 @@ export default function PublicProfilePage() {
   const [followModal, setFollowModal] = useState<null | 'followers' | 'following'>(null);
   const [fetchError, setFetchError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [hostedEvents, setHostedEvents] = useState<HostedEvent[]>([]);
   const [attendedEvents, setAttendedEvents] = useState<HostedEvent[]>([]);
   const [stamps, setStamps] = useState<Stamp[]>([]);
@@ -299,16 +297,10 @@ export default function PublicProfilePage() {
 
   return (
     <div className="min-h-screen bg-[var(--page-bg)]">
-      <LoadingScreen onComplete={() => setIsLoaded(true)} />
       <PageShell>
-        {/* Entrance fade: a page-bg overlay fades OUT instead of the content
-            fading in — same visual, but text below keeps full computed
-            contrast the whole time (fading the section itself made automated
-            contrast checks fail when snapshotted mid-transition). */}
-        <div
-          className={`fixed inset-0 z-[70] pointer-events-none bg-[var(--page-bg)] transition-opacity duration-500 ${isLoaded && !loading ? 'opacity-0' : 'opacity-100'}`}
-          aria-hidden="true"
-        />
+        {/* Content renders the moment data arrives — the old LoadingScreen +
+            full-viewport fade held the page invisible ~2.3s regardless of how
+            fast the data came back. */}
         <section className="min-h-screen px-4 md:px-6 py-4 md:py-6">
           <div className="max-w-[var(--content-max)] mx-auto">
             {profile && (
