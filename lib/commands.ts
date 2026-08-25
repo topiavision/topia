@@ -35,6 +35,7 @@ export function buildCommands(opts: {
   if (authenticated) {
     cmds.push(
       // These land on bot-first pages — the ✦ assistant takes it from there.
+      { id: 'ask-assistant', label: 'Ask the assistant', group: 'Actions', glyph: '✦', keywords: 'ai bot help agent find discover make anything', href: '/assistant' },
       { id: 'create-world', label: 'Create a world', group: 'Actions', glyph: '+', keywords: 'new start build', href: '/dashboard/create-world' },
       { id: 'create-event', label: 'Create an event', group: 'Actions', glyph: '+', keywords: 'new host party show gig', href: '/events/create' },
       { id: 'create-project', label: 'Add a project', group: 'Actions', glyph: '+', keywords: 'new work portfolio roadmap milestone', href: '/dashboard/worlds' },
@@ -79,6 +80,7 @@ export function buildCommands(opts: {
         href: username ? `/profile/${username}` : '/profile', keywords: 'profile me account',
       },
       { id: 'go-messages', label: 'Messages', group: 'Go to', glyph: '✉', href: '/messages', keywords: 'dm chat inbox conversations' },
+      { id: 'go-assistant', label: 'Assistant', group: 'Go to', glyph: '✦', href: '/assistant', keywords: 'ai bot agent help' },
     );
     if (features.includes('funding')) {
       cmds.push({ id: 'go-payouts', label: 'Payouts', group: 'Go to', glyph: '⇄', href: '/dashboard/payouts', keywords: 'stripe money funding connect bank' });

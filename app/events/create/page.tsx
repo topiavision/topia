@@ -27,6 +27,14 @@ export default function CreateEventPage() {
   const { profile, loading } = useUserProfile();
 
   const [mode, setMode] = useState<'assistant' | 'form'>('assistant');
+  // A seed handed over from /assistant ("host a listening party…") — consume once.
+  const [agentSeed] = useState<string | undefined>(() => {
+    try {
+      const s = sessionStorage.getItem('topia:assistant-seed') ?? undefined;
+      if (s) sessionStorage.removeItem('topia:assistant-seed');
+      return s;
+    } catch { return undefined; }
+  });
   const [prefill, setPrefill] = useState<null | { initial: EventComposerInitial; initialQuestions: DraftQuestion[]; initialTickets: StagedTickets }>(null);
   const [seedVersion, setSeedVersion] = useState(0);
 
@@ -54,6 +62,7 @@ export default function CreateEventPage() {
         <EventBuilder
           variant="page"
           showBack
+          seedText={agentSeed}
           privyId={user?.id ?? ''}
           onHandoff={(props) => {
             setPrefill(props);
