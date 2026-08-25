@@ -209,13 +209,17 @@ function formatTimeForStorage(time24: string): string {
   return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
-export default function EventComposer({ mode, initial, initialQuestions, initialTickets }: {
+export default function EventComposer({ mode, initial, initialQuestions, initialTickets, topSlot }: {
   mode: 'create' | 'edit';
   initial: EventComposerInitial;
   /** Create-mode prefill from the Event Builder — staged exactly as if the
    * host had added them by hand. Ignored in edit mode (questions load live). */
   initialQuestions?: DraftQuestion[];
   initialTickets?: StagedTickets;
+  /** Rendered at the top of the body, above the import panel — the create
+   * page slots its ✦ assistant bar here so it sits INSIDE the composer's
+   * layout (nav clearance, width, sticky bar) instead of fighting it. */
+  topSlot?: React.ReactNode;
 }) {
   const router = useRouter();
   const { user, authenticated, ready } = usePrivy();
@@ -718,6 +722,7 @@ export default function EventComposer({ mode, initial, initialQuestions, initial
 
       {/* Body */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-[var(--mobile-nav-clearance)] md:pb-32">
+        {topSlot && <div className="mb-6">{topSlot}</div>}
         {/* Import from link — create only. Paste a Partiful/Luma/Posh URL to
             autofill the fields, then review + publish. */}
         {mode === 'create' && (
