@@ -33,7 +33,22 @@ export type { CheckoutTotal } from './fees';
  *  is gated separately from Stripe itself so ticketing can keep running on the
  *  platform account while payouts are still being rolled out. */
 export function isConnectConfigured(): boolean {
-  return isStripeConfigured() && process.env.STRIPE_CONNECT_ENABLED === 'true';
+  const hasKey = isStripeConfigured();
+  const enabled = process.env.STRIPE_CONNECT_ENABLED === 'true';
+  if (!hasKey || !enabled) {
+    /* Say WHICH half is missing. "Payments are not available yet" is the right
+     * thing to show a user and a useless thing to debug from — and the two
+     * halves fail for different reasons: the key is usually present already
+     * (ticketing needs it), while STRIPE_CONNECT_ENABLED is a separate opt-in
+     * that is easy to miss when adding "the Stripe keys". */
+    console.warn(
+      '[payouts] Connect unavailable —' +
+      (hasKey ? '' : ' STRIPE_SECRET_KEY missing;') +
+      (enabled ? '' : ' STRIPE_CONNECT_ENABLED is not "true";') +
+      ' set it in the environment and REDEPLOY (Vercel applies env changes to new deployments only).',
+    );
+  }
+  return hasKey && enabled;
 }
 
 /* ── Account status ────────────────────────────────────────────────── */
