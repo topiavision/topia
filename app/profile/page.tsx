@@ -277,16 +277,6 @@ export default function ProfilePage() {
     try { await fn(); } finally { setUnlinking(null); }
   };
 
-  if (!ready || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--page-bg)]">
-        <LoadingBar />
-      </div>
-    );
-  }
-
-  const handleChanged = username !== originalUsername;
-
   useEffect(() => {
     // Arriving with ?assistant=1 (onboarding's "finish your passport" CTA)
     // opens the bot once the page is ready.
@@ -298,6 +288,16 @@ export default function ProfilePage() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (!ready || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--page-bg)]">
+        <LoadingBar />
+      </div>
+    );
+  }
+
+  const handleChanged = username !== originalUsername;
 
   // The assistant edits live via /api/auth/sync — this page's form keeps a
   // dirty-snapshot, so when the assistant saved anything we reload rather
