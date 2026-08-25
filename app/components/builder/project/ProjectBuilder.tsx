@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   emptyProjectDraft, matchMemberName, parseProjectUtterance, clampProjectFields, projectToPayload,
   type DraftProject, type MemberOption,
@@ -42,9 +42,11 @@ type Chip =
   | { label: string; t: 'keep_editing' }
   | { label: string; t: 'cancel' };
 
-export function ProjectBuilder({ worldId, privyId, members, allTools, onExitToForm, onClose, onCreated }: {
+export function ProjectBuilder({ worldId, privyId, members, allTools, seedText, onExitToForm, onClose, onCreated }: {
   worldId: string;
   privyId: string;
+  /** Text from an AssistantBar — processed as the first user message. */
+  seedText?: string;
   members: WorldMember[];
   allTools: ToolOption[];
   onExitToForm: () => void;
@@ -315,6 +317,21 @@ export function ProjectBuilder({ worldId, privyId, members, allTools, onExitToFo
       return;
     }
   }, [stage, pendingIntent, privyId, pushUser, pushBot, pushBotAfter, setChips, setDraft, seed, advance, absorbCredits, toolChips, refineChips]);
+
+  // A seed from the AssistantBar is processed as the first user message.
+  // Ref-guarded so StrictMode's double effect can't run it twice.
+  const bootRef = useRef(false);
+  const handleTextRef = useRef(handleText);
+  handleTextRef.current = handleText;
+  useEffect(() => {
+    if (bootRef.current) return;
+    bootRef.current = true;
+    if (seedText?.trim()) {
+      const t = setTimeout(() => handleTextRef.current(seedText), 250);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChip = useCallback((chip: Chip) => {
     if (stage === 'saving') return;

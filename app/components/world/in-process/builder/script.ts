@@ -31,6 +31,7 @@ export const COPY = {
   fundPickPrompt: `Which milestone should ask for support? Not every one needs money — pick the ones that do.`,
   fundAmountPrompt: (title: string) => `What's the goal for “${title}”? A number is enough — “$800” or “1.5k”.`,
   fundAmountRetry: `I need a dollar amount — “$800”, “1,200”, “1.5k”.`,
+  editIntro: (title: string) => `Here's ${title} ✦ Tell me what to change — everything I do here saves as we go.`,
   saveFailed: (serverError: string | null) => serverError || `Could not save — try again?`,
   saving: `Saving your roadmap…`,
   savedPartialGoals: (n: number, serverError: string | null) =>
@@ -52,6 +53,7 @@ export const CHIP = {
   rename: 'Rename it',
   fund: 'Fund a milestone $',
   save: 'Save roadmap ✦',
+  doneEditing: 'Done ✦',
   finishPartial: 'Take me to it ✦',
   tryAgain: 'Try again',
   keepEditing: 'Keep editing',

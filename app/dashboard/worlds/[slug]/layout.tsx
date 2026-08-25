@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import LoadingBar from '../../../components/LoadingBar';
 import Tour, { type TourStep } from '../../../components/Tour';
+import { WorldAssistantDock } from '../../../components/builder/world/WorldAssistantDock';
 import { WorldData, ToolOption, PendingInvite, ProjectItem } from '../../_components/types';
 
 // First-visit walkthrough of a world's HQ — once per account, builders only.
@@ -224,6 +225,16 @@ export default function WorldDashboardLayout({
           </div>
         </div>
       </div>
+      {/* The assistant is the go-to: tell it what to change, it does it or
+          opens the right builder. Sits on every manage subpage. */}
+      <WorldAssistantDock
+        world={{ ...world, slug, imageUrl, members }}
+        allTools={allTools}
+        privyId={user!.id}
+        isBuilder={isBuilder}
+        setProjects={setProjects}
+        setImageUrl={setImageUrl}
+      />
       {children}
 
       <Tour tourKey="world-hq" privyId={user!.id} enabled={isBuilder} steps={HQ_TOUR} />

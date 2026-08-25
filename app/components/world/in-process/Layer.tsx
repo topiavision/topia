@@ -12,6 +12,7 @@ import { HowThisWorks } from './HowThisWorks';
 import { EraForm } from './EraForm';
 import { EraSection } from './EraSection';
 import { RoadmapBuilder } from './builder/RoadmapBuilder';
+import { AssistantBar } from '../../builder/AssistantBar';
 import type { EraView, ProjectOption } from './types';
 import { useFundingGoals } from './funding/useFundingGoals';
 import { FundingReturn } from './funding/FundingReturn';
@@ -56,7 +57,9 @@ export default function InProcessLayer({
   }, [getAccessToken]);
   const privyId = user?.id ?? '';
   const [creating, setCreating] = useState(false);
-  const [building, setBuilding] = useState(false);
+  // What the assistant bar launched: create a new roadmap, or live-edit an
+  // existing one — optionally seeded with what the builder typed.
+  const [botLaunch, setBotLaunch] = useState<null | { mode: 'create' | 'edit'; seed?: string; era?: EraView }>(null);
   const [canMint, setCanMint] = useState(false);
 
   useEffect(() => {
@@ -82,7 +85,7 @@ export default function InProcessLayer({
   // switcher at the new roadmap's group so it's visible immediately even in
   // multi-project worlds.
   const handleBuilt = useCallback((era: EraView) => {
-    setBuilding(false);
+    setBotLaunch(null);
     setPickedGroup(era.projectId ?? '__world__');
     onChanged();
   }, [onChanged]);
@@ -103,6 +106,21 @@ export default function InProcessLayer({
   const groupLabel = (k: string) => (k === '__world__' ? 'This world' : byGroup[k][0].projectName ?? byGroup[k][0].title);
   const groupInMotion = (k: string) => byGroup[k].some((e) => e.status === 'active' && e.milestones.some((m) => m.status === 'now'));
 
+  /* Assistant-bar routing: "new/another roadmap…" creates; anything else
+   * edits the roadmap on screen. A seed naming another project's roadmap
+   * switches to it first (loose token match on project name / era title). */
+  const launchAssistant = (seed: string) => {
+    const wantsNew = visible.length === 0 || /\b(?:new|another|start)\b[^.]*\broadmap\b|^new\b/i.test(seed);
+    if (wantsNew) { setBotLaunch({ mode: 'create', seed }); return; }
+    const low = seed.toLowerCase();
+    const named = visible.find((e) =>
+      (e.projectName && low.includes(e.projectName.toLowerCase())) ||
+      low.includes(e.title.toLowerCase()));
+    const target = named ?? shownEras[0];
+    if (named) setPickedGroup(named.projectId ?? '__world__');
+    setBotLaunch({ mode: 'edit', seed, era: target });
+  };
+
   if (visible.length === 0 && !creating) {
     return (
       <div className="bg-[var(--page-bg)] p-4">
@@ -115,16 +133,20 @@ export default function InProcessLayer({
                 A roadmap tells the story of {projectScope ? 'this project' : 'a project'} in milestones — what&apos;s done,
                 what&apos;s in motion, what&apos;s next. {!projectScope && 'No project yet? You can make one as you go.'}
               </p>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <button onClick={() => setBuilding(true)} className={btnLime}>✦ Build it for me</button>
-                <button id="tour-ip-start" onClick={startCreate} className={btnGhost}>+ Start a roadmap</button>
+              <div className="w-full max-w-xl text-left">
+                <AssistantBar
+                  placeholder="Describe the roadmap — “a podcast called Signal, 8 episodes, next spring”…"
+                  suggestions={['Build me a roadmap', 'An album out in June', 'A film, premiering next year']}
+                  onLaunch={(seed) => setBotLaunch({ mode: 'create', seed: /^build me a roadmap$/i.test(seed) ? undefined : seed })}
+                />
               </div>
+              <button id="tour-ip-start" onClick={startCreate} className={btnGhost}>+ Start a roadmap instead</button>
             </>
           )}
         </div>
         <HowThisWorks canEdit={canEdit} />
         <Tour tourKey="inprocess" privyId={privyId} enabled={canEdit} steps={IP_TOUR} />
-        {building && (
+        {botLaunch && (
           <RoadmapBuilder
             worldId={worldId}
             projects={creatableProjects}
@@ -132,7 +154,8 @@ export default function InProcessLayer({
             privyId={privyId}
             canFund={canEdit}
             accessToken={accessToken}
-            onClose={() => setBuilding(false)}
+            seedText={botLaunch.seed}
+            onClose={() => setBotLaunch(null)}
             onCreated={handleBuilt}
           />
         )}
@@ -171,6 +194,16 @@ export default function InProcessLayer({
             })}
           </div>
         )}
+        {canEdit && (
+          <div className="pt-4">
+            <AssistantBar
+              id="tour-ip-assistant"
+              placeholder="Build or change the roadmap — “mark mixing done”, “add a milestone”…"
+              suggestions={['Mark a milestone done', 'Add a milestone', 'Change the timeline', 'New roadmap']}
+              onLaunch={launchAssistant}
+            />
+          </div>
+        )}
       </div>
       {creating && (
         <EraForm
@@ -203,23 +236,24 @@ export default function InProcessLayer({
         />
       ))}
       {canEdit && !creating && visible.length > 0 && !projectScope && (
-        <div className="flex flex-wrap items-center gap-2 self-start">
-          <button id="tour-ip-add" onClick={startCreate} className={btnGhost}>+ Roadmap for another project</button>
-          <button onClick={() => setBuilding(true)} className={btnGhost} style={{ color: ORANGE }}>✦ Build one for me</button>
-        </div>
+        <button id="tour-ip-add" onClick={startCreate} className={`${btnGhost} self-start`}>+ Roadmap for another project</button>
       )}
       <HowThisWorks canEdit={canEdit} />
       <Tour tourKey="inprocess" privyId={privyId} enabled={canEdit} steps={IP_TOUR} />
-      {building && (
+      {botLaunch && (
         <RoadmapBuilder
           worldId={worldId}
           projects={creatableProjects}
           projectScope={projectScope}
           privyId={privyId}
-          canFund={canEdit}
+          canFund={canEdit && canSetGoals}
           accessToken={accessToken}
-          onClose={() => setBuilding(false)}
+          seedText={botLaunch.seed}
+          existing={botLaunch.mode === 'edit' ? botLaunch.era : undefined}
+          goals={botLaunch.mode === 'edit' ? goals : undefined}
+          onClose={() => setBotLaunch(null)}
           onCreated={handleBuilt}
+          onEdited={() => { onChanged(); reloadGoals(); }}
         />
       )}
     </div>

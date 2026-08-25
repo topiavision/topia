@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   WORLD_CATEGORIES, matchCategory, parseWorldUtterance, clampWorldFields,
@@ -39,8 +39,10 @@ const categoryChips = (): Chip[] => [
   { label: CHIP.skip, t: 'skip' },
 ];
 
-export function WorldBuilder({ privyId, onExitToForm, onClose }: {
+export function WorldBuilder({ privyId, seedText, onExitToForm, onClose }: {
   privyId: string;
+  /** Text from an AssistantBar — processed as the first user message. */
+  seedText?: string;
   /** The permanent escape hatch — swaps to the untouched classic form. */
   onExitToForm: () => void;
   onClose: () => void;
@@ -208,6 +210,21 @@ export function WorldBuilder({ privyId, onExitToForm, onClose }: {
       return;
     }
   }, [stage, pendingIntent, pushUser, pushBot, setChips, setDraft, seed, advance, refineChips]);
+
+  // A seed from the AssistantBar is processed as the first user message.
+  // Ref-guarded so StrictMode's double effect can't run it twice.
+  const bootRef = useRef(false);
+  const handleTextRef = useRef(handleText);
+  handleTextRef.current = handleText;
+  useEffect(() => {
+    if (bootRef.current) return;
+    bootRef.current = true;
+    if (seedText?.trim()) {
+      const t = setTimeout(() => handleTextRef.current(seedText), 250);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChip = useCallback((chip: Chip) => {
     if (stage === 'saving') return;

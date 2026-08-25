@@ -19,6 +19,7 @@ export type Chip =
   | { label: string; t: 'fund' }
   | { label: string; t: 'pick_ms'; index: number; rename?: boolean; goal?: boolean; cmd?: BuilderCommand }
   | { label: string; t: 'save'; accent?: boolean }
+  | { label: string; t: 'done_edit'; accent?: boolean }
   | { label: string; t: 'finish_partial' }
   | { label: string; t: 'try_again' }
   | { label: string; t: 'keep_editing' }
