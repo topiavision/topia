@@ -10,10 +10,8 @@ export default function CreateEventPage() {
   const { profile, loading } = useUserProfile();
 
   useEffect(() => {
-    if (!loading && profile?.path === 'catalyst') router.push('/dashboard');
   }, [loading, profile?.path, router]);
 
-  if (!loading && profile?.path === 'catalyst') return null;
 
   return (
     <EventComposer

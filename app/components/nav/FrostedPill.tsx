@@ -44,17 +44,9 @@ export default function FrostedPill({ onMenuToggle, onOpenMessages, onOpenCard }
     const dismissed = localStorage.getItem('topia:install-hint') === 'dismissed';
     setInstallState(!standalone && !dismissed ? 'chip' : 'hidden');
   }, []);
-  useEffect(() => {
-    if (!authenticated || installState === 'hidden') return;
-    try { if (localStorage.getItem('topia:a2hs-sheet-seen')) return; } catch { return; }
-    const t = setTimeout(() => {
-      // The live-event takeover pops at ~900ms — one takeover at a time, so
-      // check its flag at fire time; the sheet gets its moment next visit.
-      try { if (sessionStorage.getItem('topia:live-takeover-shown')) return; } catch { /* private mode */ }
-      setInstallSheetOpen(true);
-    }, 1500);
-    return () => clearTimeout(t);
-  }, [authenticated, installState]);
+  /* The sheet used to AUTO-OPEN at 1500ms — one of three interruptions
+   * stacked into a first mobile session. It now opens only when the chip is
+   * tapped: same information, zero ambush. */
   const closeInstallSheet = () => {
     setInstallSheetOpen(false);
     try { localStorage.setItem('topia:a2hs-sheet-seen', '1'); } catch { /* private mode */ }

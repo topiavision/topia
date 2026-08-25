@@ -11,7 +11,6 @@ const MessagesModal = dynamic(() => import('./MessagesModal'), { ssr: false });
 const TopiaCardModal = dynamic(() => import('./profile/TopiaCardModal'), { ssr: false });
 // Live-event takeover — client-only (localStorage + live-now lookup decide
 // whether it ever renders).
-const LiveEventTakeover = dynamic(() => import('./LiveEventTakeover'), { ssr: false });
 import BadgesProvider from './BadgesProvider';
 import { OPEN_MESSAGES_EVENT } from '../../lib/openMessages';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -44,7 +43,9 @@ export default function Navigation() {
           can't reveal it behind the sheet. */}
       {!msgOpen && <FrostedPill onMenuToggle={() => setMenuOpen(true)} onOpenMessages={() => openMessages()} onOpenCard={() => setCardOpen(true)} />}
       {/* Once-a-day full-screen announcement when an event is live today */}
-      <LiveEventTakeover />
+      {/* The full-screen live-event takeover is retired: the live chip in
+          both navs is the door, without hijacking the first second of a
+          session. */}
       <MobileMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
       {msgOpen && <MessagesModal key={openKey} initialConversationId={initialConv} onClose={() => setMsgOpen(false)} />}
       {/* The viewer's own Topia card, with the connect-QR back face — the

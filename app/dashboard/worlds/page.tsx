@@ -40,7 +40,6 @@ export default function DashboardWorldsPage() {
     }
   };
 
-  const isCatalyst = profile?.path === 'catalyst';
 
   return (
     <div>
@@ -53,7 +52,7 @@ export default function DashboardWorldsPage() {
               Worlds.
             </h1>
           </div>
-          {!isCatalyst && (
+          {(
             <Link
               href="/dashboard/create-world"
               className="font-mono text-[11px] uppercase tracking-[2px] bg-obsidian text-lime px-3 py-1.5 rounded-sm hover:opacity-90 transition no-underline shrink-0 font-bold"
@@ -73,10 +72,10 @@ export default function DashboardWorldsPage() {
         <div className="border border-ink/[0.08] rounded-lg bg-[var(--page-bg)] p-10 text-center">
           <p className="font-basement font-black text-[22px] uppercase text-ink leading-tight">No worlds yet.</p>
           <p className="font-mono text-[12px] text-ink/50 mt-2 max-w-xs mx-auto">
-            A world is your scene — a place creators rally around. {isCatalyst ? 'Join one you love.' : 'Start one, or join one you love.'}
+            A world is your scene — a place creators rally around. Start one, or join one you love.
           </p>
           <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
-            {!isCatalyst && (
+            {(
               <Link
                 href="/dashboard/create-world"
                 className="font-mono text-[11px] uppercase tracking-[2px] bg-lime text-obsidian px-4 py-2 rounded-sm hover:opacity-90 transition no-underline font-bold"
