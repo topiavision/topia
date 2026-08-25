@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { ProfileAssistant } from '../components/builder/profile/ProfileAssistant';
+import { AssistantLauncher } from '../components/builder/AssistantLauncher';
+import { FloatingAssistant } from '../components/builder/FloatingAssistant';
+import type { ProfileState } from '@/lib/builder/profile';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -42,7 +46,7 @@ const fieldInput = 'w-full bg-ink/[0.04] border border-ink/15 focus:border-[var(
 
 export default function ProfilePage() {
   const {
-    ready, authenticated, user, logout,
+    ready, authenticated, user, logout, getAccessToken,
     linkEmail, unlinkEmail,
     linkPhone, unlinkPhone,
     linkGoogle, unlinkGoogle,
@@ -72,6 +76,8 @@ export default function ProfilePage() {
   const [pronouns, setPronouns] = useState('');
   const [customLinks, setCustomLinks] = useState<{ label: string; url: string }[]>([]);
   const [avatarDragging, setAvatarDragging] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   // Tools from DB
   const [allTools, setAllTools] = useState<Tool[]>([]);
@@ -281,9 +287,66 @@ export default function ProfilePage() {
 
   const handleChanged = username !== originalUsername;
 
+  useEffect(() => {
+    // Arriving with ?assistant=1 (onboarding's "finish your passport" CTA)
+    // opens the bot once the page is ready.
+    try {
+      if (new URLSearchParams(window.location.search).get('assistant') === '1') setAssistantOpen(true);
+    } catch { /* SSR-safe no-op */ }
+    let cancelled = false;
+    getAccessToken?.().then((t) => { if (!cancelled) setAccessToken(t); }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The assistant edits live via /api/auth/sync — this page's form keeps a
+  // dirty-snapshot, so when the assistant saved anything we reload rather
+  // than let the form show a phantom "unsaved changes" state.
+  const assistantState: ProfileState = {
+    name: name || null, bio: bio || null, pronouns: pronouns || null,
+    path: path || null, avatarUrl: avatarUrl || null, stackTitle: stackTitle || null,
+    roleTags: selectedRoles, toolSlugs: selectedTools,
+    socials: {
+      ...(socialWebsite ? { website: socialWebsite } : {}),
+      ...(socialTwitter ? { twitter: socialTwitter } : {}),
+      ...(socialInstagram ? { instagram: socialInstagram } : {}),
+      ...(socialSoundcloud ? { soundcloud: socialSoundcloud } : {}),
+      ...(socialSpotify ? { spotify: socialSpotify } : {}),
+      ...(socialLinkedin ? { linkedin: socialLinkedin } : {}),
+      ...(socialSubstack ? { substack: socialSubstack } : {}),
+      ...(socialFarcaster ? { farcaster: socialFarcaster } : {}),
+    },
+  };
+
   return (
     <div className="min-h-screen bg-[var(--page-bg)] text-ink">
       <PageShell>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-4">
+          <AssistantLauncher
+            heading="Your passport, by talking"
+            prompts={[
+              "write my bio…",
+              "i'm a photographer…",
+              'change my photo…',
+              'instagram: your link…',
+            ]}
+            onOpen={() => setAssistantOpen(true)}
+          />
+        </div>
+        <FloatingAssistant onOpen={() => setAssistantOpen(true)} hidden={assistantOpen} label="Edit your passport" />
+        {assistantOpen && (
+          <ProfileAssistant
+            initial={assistantState}
+            username={username || null}
+            allTools={allTools}
+            privyId={user?.id ?? ''}
+            accessToken={accessToken}
+            onClose={(saved) => {
+              setAssistantOpen(false);
+              if (saved) window.location.reload();
+            }}
+          />
+        )}
         {/* ── Sticky top action bar — sits below the nav ────────── */}
         <div
           className="sticky top-0 md:top-[var(--nav-height,56px)] z-30 backdrop-blur-md border-b border-ink/[0.06]"

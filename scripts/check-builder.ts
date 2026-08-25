@@ -18,6 +18,10 @@ import {
   parseEventWhen, parseTimeToken, parseCapacity, parseQuestionList, parseTierList,
   clampEventFields, draftToComposer, emptyEventDraft,
 } from '../lib/builder/event';
+import {
+  parseProfileUtterance, applyProfileCommand, commandToSyncBody, clampProfileFields, matchRoleLabel,
+  type ProfileState,
+} from '../lib/builder/profile';
 
 let failures = 0;
 function check(label: string, actual: unknown, expected: unknown) {
@@ -195,6 +199,41 @@ check('handoff initial shape', { n: handoff.initial.eventName, d: handoff.initia
 check('handoff timezone left to browser', handoff.initial.timezone, '');
 check('handoff stages questions + tickets', handoff.initialQuestions.length === 2 && handoff.initialTickets.tiers.length === 2, true);
 check('handoff never publishes', handoff.initial.published, false);
+
+/* ── profile engine ────────────────────────────────────────────────── */
+console.log('\nprofile:');
+check('bio:', parseProfileUtterance('bio: making gentle software'), { kind: 'set_bio', text: 'making gentle software' });
+check('add role fuzzy', parseProfileUtterance("i'm a photograph"), { kind: 'add_role', label: 'photograph' });
+check('role match fuzzy → canonical', matchRoleLabel('photograph'), 'Photographer');
+check('pronouns:', parseProfileUtterance('pronouns: they/them'), { kind: 'set_pronouns', text: 'they/them' });
+check('avatar intent', parseProfileUtterance('change my photo').kind, 'want_avatar');
+check('handle coached', parseProfileUtterance('handle: newname').kind, 'handle');
+check('bare instagram url routes', parseProfileUtterance('instagram.com/nightgarden'),
+  { kind: 'set_social', key: 'instagram', url: 'https://instagram.com/nightgarden' });
+check('x.com → twitter', parseProfileUtterance('x.com/nightgarden').kind === 'set_social' && (parseProfileUtterance('x.com/nightgarden') as { key: string }).key === 'twitter', true);
+
+const PS: ProfileState = { name: 'A', bio: null, pronouns: null, path: 'catalyst', avatarUrl: null, stackTitle: null, roleTags: ['producer'], toolSlugs: [], socials: {} };
+let pr = applyProfileCommand(PS, { kind: 'add_role', label: 'photographer' });
+check('role added as slug', pr.next?.roleTags, ['producer', 'photographer']);
+check('sync body = full CSV list', commandToSyncBody({ kind: 'add_role', label: 'x' }, pr.next!), { roleTags: 'producer,photographer' });
+pr = applyProfileCommand({ ...PS, roleTags: ['a', 'b', 'c'] }, { kind: 'add_role', label: 'photographer' });
+check('ROLES_MAX enforced', pr.next, null);
+pr = applyProfileCommand(PS, { kind: 'add_role', label: 'producer' });
+check('dupe role refused', pr.next, null);
+pr = applyProfileCommand(PS, { kind: 'remove_role', label: 'producer' });
+check('remove role → empty CSV nulls', commandToSyncBody({ kind: 'remove_role', label: 'x' }, pr.next!), { roleTags: null });
+check('set_social body maps field', commandToSyncBody({ kind: 'set_social', key: 'farcaster', url: 'x' },
+  { ...PS, socials: { farcaster: 'https://warpcast.com/a' } }), { socialFarcaster: 'https://warpcast.com/a' });
+
+const cpf = clampProfileFields({
+  bio: 'x'.repeat(999), pronouns: 42, roleLabels: ['photograph', 'Photographer', 'not-a-real-role-zzz'],
+  tools: ['Figma', 'Figma'], socials: { instagram: 'instagram.com/a', evil: 'javascript:alert(1)', website: 'javascript:alert(1)' },
+});
+check('clamp bio 280', cpf.bio?.length, 280);
+check('clamp drops non-string pronouns', 'pronouns' in cpf, false);
+check('clamp roles → canonical, deduped, vocab-only', cpf.roleLabels, ['Photographer']);
+check('clamp tools deduped', cpf.tools, ['Figma']);
+check('clamp socials: valid kept, js and unknown dropped', cpf.socials, { instagram: 'https://instagram.com/a' });
 
 if (failures > 0) {
   console.error(`\n❌ ${failures} builder assertion(s) failed.\n`);

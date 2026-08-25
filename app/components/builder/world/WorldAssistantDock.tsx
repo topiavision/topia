@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { AssistantLauncher } from '../AssistantLauncher';
 import { FloatingAssistant } from '../FloatingAssistant';
 import { WorldManager } from './WorldManager';
@@ -34,8 +35,13 @@ export function WorldAssistantDock({ world, allTools, privyId, isBuilder, setPro
   setImageUrl: (url: string) => void;
 }) {
   const [open, setOpen] = useState<null | { bot: 'manager' | 'project'; seed?: string }>(null);
+  const pathname = usePathname();
 
   if (!isBuilder) return null;
+  // Context switch: on the In Process subpage the roadmap assistant (mounted
+  // by the layer itself) is the right bot — don't stack a second, generic
+  // assistant on top of it.
+  if (pathname?.endsWith('/in-process')) return null;
 
   return (
     <>

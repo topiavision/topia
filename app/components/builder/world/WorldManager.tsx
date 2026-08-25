@@ -170,6 +170,10 @@ export function WorldManager({ world, allTools, privyId, seedText, onFieldSaved,
       case 'handoff_project':
         onLaunchProject(cmd.seed);
         break;
+      case 'handoff_members':
+        pushBot(`Members and invites live on the Members page — taking you there.`);
+        setTimeout(() => router.push(`/dashboard/worlds/${world.slug}/members`), 900);
+        break;
       case 'handoff_roadmap':
         pushBot(`Roadmaps live on the In Process tab — taking you there.`);
         setTimeout(() => router.push(`/dashboard/worlds/${world.slug}/in-process`), 900);

@@ -23,7 +23,7 @@ const EMPTY: EventComposerInitial = {
 
 export default function CreateEventPage() {
   const router = useRouter();
-  const { user } = usePrivy();
+  const { user, ready, authenticated } = usePrivy();
   const { profile, loading } = useUserProfile();
 
   const [mode, setMode] = useState<'assistant' | 'form'>('assistant');
@@ -36,11 +36,24 @@ export default function CreateEventPage() {
 
   if (!loading && profile?.path === 'catalyst') return null;
 
+  // Assistants are for signed-in creators. Wait for Privy before deciding —
+  // deciding early bounces real users during hydration (CLAUDE.md rule 5).
+  if (!ready) return <div className="min-h-screen bg-[var(--page-bg)]" />;
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen bg-[var(--page-bg)] flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="font-mono text-[13px] text-ink">Please log in to create an event.</p>
+        <a href="/events" className="font-mono text-[11px] uppercase tracking-[2px] text-ink/50 hover:text-ink underline">← Back to Events</a>
+      </div>
+    );
+  }
+
   if (mode === 'assistant') {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-[calc(var(--nav-height)+16px)] pb-[var(--mobile-nav-clearance)] md:pb-8">
         <EventBuilder
           variant="page"
+          showBack
           privyId={user?.id ?? ''}
           onHandoff={(props) => {
             setPrefill(props);
