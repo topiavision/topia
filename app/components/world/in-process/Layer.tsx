@@ -112,7 +112,14 @@ export default function InProcessLayer({
    * switches to it first (loose token match on project name / era title). */
   const launchAssistant = (seed: string) => {
     const wantsNew = visible.length === 0 || /\b(?:new|another|start)\b[^.]*\broadmap\b|^new\b/i.test(seed);
-    if (wantsNew) { setBotLaunch({ mode: 'create', seed: seed || undefined }); return; }
+    if (wantsNew) {
+      // The instruction is routing, not content: "new roadmap for my album"
+      // seeds the builder with "my album", a bare "new roadmap" with nothing —
+      // never with the button's own words as a project description.
+      const content = seed.replace(/^.*?\broadmaps?\b[:,]?\s*(?:for|about|called|on)?\s*/i, '').trim();
+      setBotLaunch({ mode: 'create', seed: content || undefined });
+      return;
+    }
     setBotLaunch({ mode: 'edit', seed: seed || undefined, era: shownEras[0] });
   };
 

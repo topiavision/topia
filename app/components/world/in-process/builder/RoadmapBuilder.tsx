@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BuilderCommand, DraftRoadmap, TemplateId } from '@/lib/roadmap-builder/types';
-import { applyCommand, draftToBatchPayload, matchMilestone, parseUtterance, parseDollars } from '@/lib/roadmap-builder/commands';
+import { applyCommand, draftToBatchPayload, matchMilestone, parseUtterance, parseDollars, stripFillers } from '@/lib/roadmap-builder/commands';
 import { parseSeed } from '@/lib/roadmap-builder/parse';
-import { TEMPLATES, instantiate, templateById } from '@/lib/roadmap-builder/templates';
+import { clampRoadmapPlan, planToTemplate } from '@/lib/roadmap-builder/plan';
+import { llmParse } from '../../../builder/llmParse';
+import { TEMPLATES, instantiate, templateById, type RoadmapTemplate } from '@/lib/roadmap-builder/templates';
 import { addMonths } from '@/lib/roadmap-builder/dates';
 import { draftFromEra, diffToPatches, idForKey } from '@/lib/roadmap-builder/edit';
 import { BuilderShell } from '../../../builder/BuilderShell';
@@ -259,6 +261,8 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
   const seedDraft = useCallback((templateId: TemplateId, opts: {
     projectName: string | null; quantity: number | null;
     end: DraftRoadmap['end']; fromFreeText: boolean;
+    /** A synthesized template (LLM plan) that overrides the catalog one. */
+    template?: RoadmapTemplate;
   }) => {
     const now = new Date();
     const base: DraftRoadmap['project'] = scopedProject
@@ -269,7 +273,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
       ? { mode: 'new' as const, name: opts.projectName }
       : base;
     const titleSource = project.mode === 'none' ? opts.projectName : (project.mode === 'new' ? project.name || opts.projectName : project.name);
-    const d = instantiate(templateById(templateId), {
+    const d = instantiate(opts.template ?? templateById(templateId), {
       projectName: titleSource || null,
       quantity: opts.quantity,
       end: opts.end,
@@ -380,7 +384,37 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
       // Typing at the project question reads as a description — assume a new
       // project and seed straight from the text.
       if (stage === 'project') projectChoice.current = { mode: 'new', name: '' };
+      // "new roadmap" (a button label or bare instruction, not a description)
+      // must not be template-matched into "no template quite fits that" —
+      // it means: clean start, straight to the name question.
+      if (/^(?:(?:a|the|my|new|another|start|make|create|build)\s+)*roadmaps?[.!?]?$/i.test(stripFillers(text))) {
+        seedDraft('generic', { projectName: null, quantity: null, end: null, fromFreeText: false });
+        return;
+      }
       const seed = parseSeed(text, new Date());
+      if (seed.templateId === 'generic') {
+        // No hand-written arc fits — let the LLM draft milestones from the
+        // description. Grammar stays the floor: unconfigured, slow, or thin
+        // results fall back to the simple arc exactly as before.
+        void pushBotAfter((async () => {
+          const raw = await llmParse('roadmap', text, privyId);
+          const plan = raw ? clampRoadmapPlan(raw) : null;
+          if (plan) {
+            // Seed after the reply lands so the chat reads in order.
+            setTimeout(() => seedDraft('generic', {
+              projectName: seed.projectName ?? plan.projectName,
+              quantity: null,
+              end: seed.end,
+              fromFreeText: false,
+              template: planToTemplate(plan),
+            }), 30);
+            return `Drafted ${plan.milestones.length} milestones from what you said — reshape anything.`;
+          }
+          setTimeout(() => seedDraft('generic', { projectName: seed.projectName, quantity: seed.quantity, end: seed.end, fromFreeText: false }), 30);
+          return COPY.genericSeed;
+        })());
+        return;
+      }
       seedDraft(seed.templateId, { projectName: seed.projectName, quantity: seed.quantity, end: seed.end, fromFreeText: true });
       return;
     }
@@ -415,7 +449,8 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
     // The empty-state tiles speak in these phrases — route them to the same
     // guided flows as their chips instead of the raw grammar.
     if (stage === 'refine') {
-      if (/^mark (?:one|a milestone) done\.?$/i.test(text)) {
+      const bare = stripFillers(text);
+      if (/^mark (?:one|a milestone) done\.?$/i.test(bare)) {
         pushBot(COPY.markDonePrompt);
         setChips([
           ...(draftRef.current?.milestones ?? []).slice(0, 8).map((m, i) => ({
@@ -426,18 +461,18 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
         ]);
         return;
       }
-      if (/^add a milestone\.?$/i.test(text)) {
+      if (/^add a milestone\.?$/i.test(bare)) {
         setPendingIntent({ type: 'add' });
         pushBot(COPY.addPrompt);
         setChips([{ label: CHIP.cancel, t: 'cancel' as const }]);
         return;
       }
-      if (/^change the timeline\.?$/i.test(text)) {
+      if (/^change the timeline\.?$/i.test(bare)) {
         pushBot(COPY.timeframePrompt);
         setChips([{ label: CHIP.cancel, t: 'cancel' as const }]);
         return;
       }
-      if (/^fund a milestone\.?$/i.test(text) && canFund) {
+      if (/^fund a milestone\.?$/i.test(bare) && canFund) {
         pushBot(COPY.fundPickPrompt);
         setChips([
           ...(draftRef.current?.milestones ?? []).slice(0, 8).map((m, i) => ({
@@ -454,13 +489,18 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
       if (cmd.kind === 'set_timeframe') {
         dispatch(cmd, { silent: true });
         enterRefine(true);
+      } else if (cmd.kind === 'set_era_title' || cmd.kind === 'set_era_description') {
+        // A correction mid-question ("actually call it Tosh55.xyz") applies,
+        // then the timeframe question stands again.
+        dispatch(cmd, { silent: true });
+        pushBot(`${cmd.kind === 'set_era_title' ? `“${cmd.title}” it is.` : 'Noted.'} ${COPY.timeframe}`);
       } else {
         pushBot(COPY.timeframePrompt);
       }
       return;
     }
     dispatch(cmd);
-  }, [stage, pendingIntent, pushUser, pushBot, seedDraft, dispatch, advanceFromSeed, enterRefine, setDraft]);
+  }, [stage, pendingIntent, pushUser, pushBot, pushBotAfter, privyId, canFund, seedDraft, dispatch, advanceFromSeed, enterRefine, setDraft]);
 
   const handleTextRef = useRef(handleText);
   handleTextRef.current = handleText;

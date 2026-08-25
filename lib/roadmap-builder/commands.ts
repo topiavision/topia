@@ -9,7 +9,7 @@ import type {
 } from './types';
 import { MAX_DRAFT_MILESTONES, MIN_GOAL_CENTS, MAX_GOAL_CENTS } from './types';
 import { formatEraDate } from '../eraDates';
-import { parseNaturalDate, parseDateRange, distributeDates, isBefore } from './dates';
+import { addMonths, parseNaturalDate, parseDateRange, distributeDates, isBefore } from './dates';
 
 /* "$500" / "1,200" / "1.5k" → integer cents, or null when it isn't money. */
 export function parseDollars(raw: string): number | null {
@@ -47,10 +47,27 @@ function splitTrailingDate(text: string, now: Date): { title: string; start: Par
   return { title: text.trim(), start: null };
 }
 
+/** Conversational filler people naturally lead with ("actually call it X",
+ * "let's say September", "I want to make it a year") — stripped so the
+ * command grammar sees the command. Loops because fillers stack. */
+export function stripFillers(text: string): string {
+  let t = text.trim();
+  for (let i = 0; i < 3; i++) {
+    const next = t
+      .replace(/^(?:so|actually|ok(?:ay)?|wait|hmm+|please|maybe|also)[,\s]+/i, '')
+      .replace(/^no,\s+/i, '')
+      .replace(/^(?:i\s+(?:want|would\s+like)\s+to|i'?d\s+(?:like|love)\s+to|let'?s(?:\s+say)?|how\s+about|what\s+about|can\s+(?:you|we)|could\s+(?:you|we))\s+/i, '')
+      .trim();
+    if (next === t) break;
+    t = next;
+  }
+  return t;
+}
+
 export function parseUtterance(text: string, now: Date): BuilderCommand {
-  const raw = text.trim();
+  const raw = stripFillers(text);
   const t = raw.toLowerCase();
-  if (!raw) return { kind: 'unknown', raw };
+  if (!raw) return { kind: 'unknown', raw: text.trim() };
 
   // Funding — MUST outrank the add-milestone pattern, or "add a $500 goal to
   // mixing" births a milestone literally titled "$500 goal to mixing".
@@ -88,12 +105,17 @@ export function parseUtterance(text: string, now: Date): BuilderCommand {
   m = raw.match(/^(?:remove|delete|drop|cut|kill)\s+(?:the\s+)?(?:milestone\s+)?(.+)$/i);
   if (m) return { kind: 'remove_milestone', ref: { title: m[1].trim() } };
 
+  // era rename: "rename it to X", "change the name to X" — must outrank the
+  // milestone rename or "it" becomes a milestone ref.
+  m = raw.match(/^(?:rename\s+(?:it|this)\s+to|change\s+the\s+(?:name|title)\s+to)\s+(.+)$/i);
+  if (m) return { kind: 'set_era_title', title: m[1].trim() };
+
   // rename: "rename mixing to final mix"
   m = raw.match(/^rename\s+(.+?)\s+to\s+(.+)$/i);
   if (m) return { kind: 'rename_milestone', ref: { title: stripArticle(m[1]) }, title: m[2].trim() };
 
   // era title: "call it Season Two", "title: Orbit"
-  m = raw.match(/^(?:call\s+it|name\s+it|title\s*:?)\s+(.+)$/i);
+  m = raw.match(/^(?:call\s+it|name\s+it|title\s*:?)\s+(?!for\s+(?:a|an|one|two|three|\d{1,2})\s+(?:year|month)s?\b)(.+)$/i);
   if (m) return { kind: 'set_era_title', title: m[1].trim() };
 
   // era description: "description: field recordings from the road"
@@ -132,6 +154,18 @@ export function parseUtterance(text: string, now: Date): BuilderCommand {
     const end = parseNaturalDate(m[1], now);
     if (end) return { kind: 'set_timeframe', start: null, end };
   }
+  // duration: "make it a year", "for 6 months", "a year" — end = now + span,
+  // same arithmetic as the timeframe chips.
+  m = raw.match(/^(?:make\s+(?:it|this)\s+|call\s+(?:it|this)\s+for\s+|for\s+)?(?:about\s+)?(a|an|one|two|three|\d{1,2})\s+(year|month)s?(?:\s+long)?$/i);
+  if (m) {
+    const n = m[1] === 'a' || m[1] === 'an' || m[1] === 'one' ? 1 : m[1] === 'two' ? 2 : m[1] === 'three' ? 3 : parseInt(m[1], 10);
+    const months = m[2].toLowerCase() === 'year' ? n * 12 : n;
+    if (months >= 1 && months <= 60) {
+      const r = addMonths(now.getFullYear(), now.getMonth() + 1, months);
+      return { kind: 'set_timeframe', start: null, end: { value: `${r.y}-${String(r.m).padStart(2, '0')}-01`, precision: 'month' } };
+    }
+  }
+
   const range = parseDateRange(t, now);
   if (range) return { kind: 'set_timeframe', ...range };
   const bare = parseNaturalDate(t, now);
@@ -321,8 +355,14 @@ export function applyCommand(draft: DraftRoadmap, cmd: BuilderCommand, now: Date
         reply: `Moved “${target.title}” — I cleared its date so the order sticks; tap it to set a new one.`,
       };
     }
-    case 'set_era_title':
-      return { draft: { ...draft, title: cmd.title }, ok: true, reply: `Calling it “${cmd.title}”.` };
+    case 'set_era_title': {
+      // A still-unnamed-then-borrowed project name follows the title — the
+      // two started as the same answer, so a rename means both.
+      const project = draft.project.mode === 'new' && draft.project.name === draft.title
+        ? { mode: 'new' as const, name: cmd.title }
+        : draft.project;
+      return { draft: { ...draft, title: cmd.title, project }, ok: true, reply: `Calling it “${cmd.title}”.` };
+    }
     case 'set_era_description':
       return { draft: { ...draft, description: cmd.text }, ok: true, reply: `Noted the description.` };
     case 'set_timeframe': {
