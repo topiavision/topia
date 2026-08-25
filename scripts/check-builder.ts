@@ -22,6 +22,9 @@ import {
   parseProfileUtterance, applyProfileCommand, commandToSyncBody, clampProfileFields, matchRoleLabel,
   type ProfileState,
 } from '../lib/builder/profile';
+import {
+  CAPABILITIES, roleFromQuery, parseAgentUtterance, clampAgentFields,
+} from '../lib/builder/agent';
 
 let failures = 0;
 function check(label: string, actual: unknown, expected: unknown) {
@@ -234,6 +237,37 @@ check('clamp drops non-string pronouns', 'pronouns' in cpf, false);
 check('clamp roles → canonical, deduped, vocab-only', cpf.roleLabels, ['Photographer']);
 check('clamp tools deduped', cpf.tools, ['Figma']);
 check('clamp socials: valid kept, js and unknown dropped', cpf.socials, { instagram: 'https://instagram.com/a' });
+
+/* ── agent ─────────────────────────────────────────────────────────── */
+console.log('\nagent:');
+check('help intent', parseAgentUtterance('what can I do'), { kind: 'help' });
+check('create event via party', parseAgentUtterance('host a listening party next month'),
+  { kind: 'create', what: 'event', seed: 'host a listening party next month' });
+check('create world', parseAgentUtterance('start a world for my label'),
+  { kind: 'create', what: 'world', seed: 'start a world for my label' });
+check('create roadmap', parseAgentUtterance('build a roadmap for the album'),
+  { kind: 'create', what: 'roadmap', seed: 'build a roadmap for the album' });
+check('manage profile', parseAgentUtterance('update my bio'),
+  { kind: 'manage', what: 'profile', seed: 'update my bio' });
+check('discover people by role + role slug', parseAgentUtterance('show me photographers'),
+  { kind: 'discover', entity: 'people', query: 'photographers', role: 'photographer' });
+check('discover tools distills query', parseAgentUtterance('what tools should i use for video?'),
+  { kind: 'discover', entity: 'tools', query: 'video' });
+check('discover events', parseAgentUtterance('find events in la'),
+  { kind: 'discover', entity: 'events', query: 'in la' });
+check('bare role word discovers people', parseAgentUtterance('producers').kind, 'discover');
+check('gibberish is unknown', parseAgentUtterance('asdf qwerty').kind, 'unknown');
+check('roleFromQuery plural', roleFromQuery('any good photographers around'), 'photographer');
+check('roleFromQuery none', roleFromQuery('purple monkeys'), null);
+check('capabilities integrity', CAPABILITIES.every((c) => c.glyph && c.title && c.blurb && c.href.startsWith('/')), true);
+check('clamp: llm discover', clampAgentFields({ intent: 'discover', entity: 'people', query: 'x'.repeat(200), role: 'Photo grapher!' }),
+  { kind: 'discover', entity: 'people', query: 'x'.repeat(80), role: 'photographer' });
+check('clamp: bad entity dropped', clampAgentFields({ intent: 'discover', entity: 'unicorns', query: 'x' }), null);
+check('clamp: create', clampAgentFields({ intent: 'create', what: 'event', seed: 's' }),
+  { kind: 'create', what: 'event', seed: 's' });
+check('clamp: bad what dropped', clampAgentFields({ intent: 'create', what: 'spaceship' }), null);
+check('clamp: help', clampAgentFields({ intent: 'help' }), { kind: 'help' });
+check('clamp: junk null', clampAgentFields('lol'), null);
 
 if (failures > 0) {
   console.error(`\n❌ ${failures} builder assertion(s) failed.\n`);

@@ -97,6 +97,17 @@ export default function TopNav({ onOpenMessages }: { onOpenMessages: () => void 
         </kbd>
       </button>
 
+      {/* Assistant — the ✦ next to search: prompt-first entry to everything. */}
+      <Link
+        href="/assistant"
+        aria-label="Topia Assistant"
+        className="hidden lg:flex items-center gap-1.5 rounded-lg border px-3 h-[34px] no-underline mr-4 -ml-4 shrink-0 transition-colors hover:border-[color-mix(in_srgb,var(--orange,#FF5C34)_55%,transparent)]"
+        style={{ borderColor: 'var(--nav-border)', color: 'var(--page-text)' }}
+      >
+        <span className="text-[13px] leading-none" style={{ color: 'var(--orange, #FF5C34)' }}>✦</span>
+        <span className="font-mono text-[11px] tracking-wide" style={{ opacity: 0.7 }}>Assistant</span>
+      </Link>
+
       {/* Right side */}
       <div className="flex items-center gap-4">
         {showLiveChip && liveEvent && (

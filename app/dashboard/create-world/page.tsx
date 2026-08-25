@@ -23,6 +23,14 @@ export default function CreateWorldPage() {
   const { profile } = useDashboard();
 
   const [mode, setMode] = useState<'bot' | 'form'>('bot');
+  // A seed handed over from /assistant — consume once.
+  const [agentSeed] = useState<string | undefined>(() => {
+    try {
+      const s = sessionStorage.getItem('topia:assistant-seed') ?? undefined;
+      if (s) sessionStorage.removeItem('topia:assistant-seed');
+      return s;
+    } catch { return undefined; }
+  });
   const [form, setForm] = useState({
     title: '',
     shortDescription: '',
@@ -93,6 +101,7 @@ export default function CreateWorldPage() {
       <div className="max-w-4xl">
         <WorldBuilder
           variant="page"
+          seedText={agentSeed}
           privyId={user.id}
           onExitToForm={() => setMode('form')}
           onClose={() => router.push('/dashboard')}

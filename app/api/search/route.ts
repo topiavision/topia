@@ -24,16 +24,26 @@ const PER_TYPE = 6;
 export async function GET(request: NextRequest) {
   try {
     const q = (request.nextUrl.searchParams.get('q') ?? '').trim().slice(0, 80);
-    if (q.length < 2) {
+    // Optional people filter by role slug ("photographer") — the assistant's
+    // "show me photographers" query. Public rows only, same cache semantics
+    // (the param varies the cache key).
+    const role = (request.nextUrl.searchParams.get('role') ?? '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40);
+    if (q.length < 2 && !role) {
       return NextResponse.json(
         { worlds: [], events: [], people: [], tools: [], grants: [], projects: [] },
         { headers: CACHE },
       );
     }
+    // Role-only queries search people alone; the other five types skip the
+    // DB entirely (textSearch=false) rather than match-nothing patterns —
+    // Postgres rejects control bytes in ILIKE params.
+    const textSearch = q.length >= 2;
     const pat = `%${q}%`;
+    const NONE: never[] = [];
 
     const [worldRows, eventRows, peopleRows, toolRows, grantRows, projectRows] =
       await Promise.all([
+        !textSearch ? NONE :
         db.select({
           title: worlds.title, slug: worlds.slug,
           subtitle: worlds.shortDescription, imageUrl: worlds.imageUrl,
@@ -44,7 +54,7 @@ export async function GET(request: NextRequest) {
           ))
           .limit(PER_TYPE),
 
-        db.select({
+        !textSearch ? NONE : db.select({
           title: events.eventName, slug: events.slug,
           city: events.city, dateIso: events.dateIso, imageUrl: events.imageUrl,
         }).from(events)
@@ -61,22 +71,24 @@ export async function GET(request: NextRequest) {
         }).from(users)
           .where(and(
             eq(users.published, true),
-            or(ilike(users.username, pat), ilike(users.name, pat)),
+            role
+              ? ilike(users.roleTags, `%${role}%`)
+              : or(ilike(users.username, pat), ilike(users.name, pat)),
           ))
-          .limit(PER_TYPE),
+          .limit(role ? 12 : PER_TYPE),
 
-        db.select({ name: tools.name, slug: tools.slug, category: tools.category })
+        !textSearch ? NONE : db.select({ name: tools.name, slug: tools.slug, category: tools.category })
           .from(tools)
           .where(and(eq(tools.published, true), or(ilike(tools.name, pat), ilike(tools.category, pat))))
           .limit(PER_TYPE),
 
-        db.select({ name: grants.grantName, slug: grants.slug, org: grants.orgName })
+        !textSearch ? NONE : db.select({ name: grants.grantName, slug: grants.slug, org: grants.orgName })
           .from(grants)
           .where(and(eq(grants.published, true), or(ilike(grants.grantName, pat), ilike(grants.orgName, pat))))
           .limit(PER_TYPE),
 
         // Projects join their world for the URL and to hide unpublished worlds.
-        db.select({
+        !textSearch ? NONE : db.select({
           name: worldProjects.name, slug: worldProjects.slug,
           worldSlug: worlds.slug, worldTitle: worlds.title,
         }).from(worldProjects)

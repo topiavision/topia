@@ -23,7 +23,7 @@ const NAV_LINKS: NavItem[] = [
       { href: '/resources/grants', label: 'Grants' },
     ],
   },
-  { href: '#', label: 'Builder', comingSoon: true },
+  { href: '/assistant', label: '✦ Assistant' },
   { href: '#', label: 'Catalysts', comingSoon: true },
   { href: '/dashboard', label: 'Dashboard' },
 ];
