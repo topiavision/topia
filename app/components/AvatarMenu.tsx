@@ -50,14 +50,28 @@ export default function AvatarMenu() {
   if (!ready && !profile) return null;
 
   if (ready && !authenticated) {
+    /* Logged-out: a primary SIGN UP plus a secondary LOG IN. Both open the
+     * same Privy modal (it handles new and returning accounts in one flow) —
+     * the split exists because newcomers scan for "sign up" and won't press a
+     * button labelled "log in", while returning users want the reverse.
+     * Primary gets the lime fill; secondary stays a quiet border. */
     return (
-      <button
-        onClick={login}
-        className="font-mono text-[13px] uppercase tracking-tight hover:opacity-70 transition border rounded-lg px-3 py-1"
-        style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
-      >
-        LOG IN
-      </button>
+      <span className="flex items-center gap-2">
+        <button
+          onClick={login}
+          className="font-mono text-[13px] uppercase tracking-tight hover:opacity-70 transition border-none rounded-lg px-3.5 py-1.5 cursor-pointer font-bold"
+          style={{ backgroundColor: 'var(--lime, #e4fe52)', color: 'var(--obsidian, #1a1a1a)' }}
+        >
+          Sign up
+        </button>
+        <button
+          onClick={login}
+          className="font-mono text-[13px] uppercase tracking-tight hover:opacity-70 transition border rounded-lg px-3 py-1.5 cursor-pointer bg-transparent"
+          style={{ color: 'var(--foreground)', borderColor: 'var(--border-color)' }}
+        >
+          Log in
+        </button>
+      </span>
     );
   }
 
