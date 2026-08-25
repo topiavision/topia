@@ -23,6 +23,13 @@ export const COPY = {
   saveFailed: (serverError: string | null) => serverError || `Could not save — try again?`,
 } as const;
 
+export const TILES = [
+  { glyph: '🎬', title: 'A film or video', sub: '“a short film called Low Tide, shot on 16mm — lowtidefilm.com”', seed: 'a short film called Low Tide, shot on 16mm' },
+  { glyph: '💿', title: 'A release', sub: '“an EP called Night Drives, out on all platforms”', seed: 'an EP called Night Drives, out on all platforms' },
+  { glyph: '🧵', title: 'A drop / collection', sub: '“a 12-piece capsule collection for spring”', seed: 'a 12-piece capsule collection for spring' },
+  { glyph: '⚙', title: 'Anything else', sub: 'name it and describe it — one message is fine', seed: '' },
+];
+
 export const CHIP = {
   skip: 'Skip',
   done: 'Done',

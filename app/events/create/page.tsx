@@ -8,7 +8,12 @@ import EventComposer, { type DraftQuestion } from '../_components/EventComposer'
 import type { EventComposerInitial } from '../_components/EventComposer';
 import type { StagedTickets } from '../_components/TicketSetup';
 import { EventBuilder } from '../../components/builder/event/EventBuilder';
-import { AssistantBar } from '../../components/builder/AssistantBar';
+import { AssistantLauncher } from '../../components/builder/AssistantLauncher';
+
+/* Create event — assistant-first, v0-style: the builder IS the page.
+ * Describe the event on the left, watch it assemble on the right, then the
+ * review handoff opens the classic composer prefilled for publish. "Use the
+ * form instead" swaps to the composer at any time. */
 
 const EMPTY: EventComposerInitial = {
   eventName: '', dateIso: '', startTime: '', endTime: '', timezone: '',
@@ -21,47 +26,49 @@ export default function CreateEventPage() {
   const { user } = usePrivy();
   const { profile, loading } = useUserProfile();
 
-  // Bot-first: the ✦ bar is the hero; typing opens the Event Builder, and its
-  // handoff re-renders the composer prefilled (keyed so initializers re-run).
-  // The form below stays fully usable — the bar is additive, not a gate.
-  const [builderSeed, setBuilderSeed] = useState<string | null>(null);
+  const [mode, setMode] = useState<'assistant' | 'form'>('assistant');
   const [prefill, setPrefill] = useState<null | { initial: EventComposerInitial; initialQuestions: DraftQuestion[]; initialTickets: StagedTickets }>(null);
   const [seedVersion, setSeedVersion] = useState(0);
 
   useEffect(() => {
+    if (!loading && profile?.path === 'catalyst') router.push('/dashboard');
   }, [loading, profile?.path, router]);
 
+  if (!loading && profile?.path === 'catalyst') return null;
 
-  return (
-    <>
-      <EventComposer
-        key={seedVersion}
-        mode="create"
-        initial={prefill?.initial ?? EMPTY}
-        initialQuestions={prefill?.initialQuestions}
-        initialTickets={prefill?.initialTickets}
-        topSlot={
-          <AssistantBar
-            id="tour-event-assistant"
-            placeholder="Describe your event — “rooftop listening party, Sept 12, 7pm, 60 people”…"
-            suggestions={['A listening party next month', 'A gallery opening, free entry', 'A ticketed workshop']}
-            onLaunch={(seed) => setBuilderSeed(seed)}
-          />
-        }
-      />
-      {builderSeed !== null && (
+  if (mode === 'assistant') {
+    return (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-[calc(var(--nav-height)+16px)] pb-[var(--mobile-nav-clearance)] md:pb-8">
         <EventBuilder
+          variant="page"
           privyId={user?.id ?? ''}
-          seedText={builderSeed || undefined}
           onHandoff={(props) => {
             setPrefill(props);
             setSeedVersion((v) => v + 1);
-            setBuilderSeed(null);
+            setMode('form');
             window.scrollTo({ top: 0 });
           }}
-          onClose={() => setBuilderSeed(null)}
+          onClose={() => setMode('form')}
         />
-      )}
-    </>
+      </div>
+    );
+  }
+
+  return (
+    <EventComposer
+      key={seedVersion}
+      mode="create"
+      initial={prefill?.initial ?? EMPTY}
+      initialQuestions={prefill?.initialQuestions}
+      initialTickets={prefill?.initialTickets}
+      topSlot={
+        <AssistantLauncher
+          compact
+          heading="Start over with the assistant"
+          prompts={['describe the event and I’ll fill this whole form in…']}
+          onOpen={() => { setPrefill(null); setSeedVersion((v) => v + 1); setMode('assistant'); }}
+        />
+      }
+    />
   );
 }

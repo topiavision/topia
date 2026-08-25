@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { AssistantBar } from '../AssistantBar';
+import { AssistantLauncher } from '../AssistantLauncher';
+import { FloatingAssistant } from '../FloatingAssistant';
 import { WorldManager } from './WorldManager';
 import { ProjectBuilder } from '../project/ProjectBuilder';
 import type { ProjectItem, ToolOption, SocialLinks } from '../../../dashboard/_components/types';
@@ -36,22 +37,23 @@ export function WorldAssistantDock({ world, allTools, privyId, isBuilder, setPro
 
   if (!isBuilder) return null;
 
-  const launch = (seed: string) => {
-    // Project intent opens the Project Builder directly, seeded.
-    const isProject = /\b(?:add|new|create|start|make)\b.*\bproject\b/i.test(seed) || /^project\s*:/i.test(seed);
-    setOpen({ bot: isProject ? 'project' : 'manager', seed });
-  };
-
   return (
     <>
       <div className="mb-6">
-        <AssistantBar
+        <AssistantLauncher
           id="tour-assistant"
-          placeholder={`Tell me what to change in ${world.title} — or just ask…`}
-          suggestions={['Swap the cover image', 'Add a project', 'Update the tagline']}
-          onLaunch={launch}
+          heading="The Assistant"
+          prompts={[
+            'punch up the tagline…',
+            'add a project…',
+            'swap the cover image…',
+            'add the tool Figma…',
+            'start a roadmap…',
+          ]}
+          onOpen={() => setOpen({ bot: 'manager' })}
         />
       </div>
+      <FloatingAssistant onOpen={() => setOpen({ bot: 'manager' })} hidden={open !== null} />
       {open?.bot === 'manager' && (
         <WorldManager
           world={world}

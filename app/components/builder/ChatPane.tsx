@@ -16,6 +16,11 @@ const orangeMix = (pct: number) => `color-mix(in srgb, var(--orange) ${pct}%, tr
 export interface ChatMessage { id: string; role: 'bot' | 'user'; text: string }
 export interface ChipBase { label: string; accent?: boolean }
 
+/** Big tappable example-prompt cards shown while the conversation is still
+ * just the intro — the empty state IS the teaching surface. Tapping one
+ * submits its seed exactly as if the user typed it. */
+export interface PromptTile { glyph: string; title: string; sub: string; seed: string }
+
 /* Bot replies type themselves out — the single biggest "someone's there"
  * cue. ~1s max regardless of length; already-seen messages render settled. */
 function BotText({ text, animate, onGrow }: { text: string; animate: boolean; onGrow: () => void }) {
@@ -52,7 +57,7 @@ function TypingDots() {
   );
 }
 
-export function ChatPane<C extends ChipBase>({ messages, chips, onChip, onSubmit, disabled, typing, extra, placeholder }: {
+export function ChatPane<C extends ChipBase>({ messages, chips, onChip, onSubmit, disabled, typing, extra, placeholder, tiles }: {
   messages: ChatMessage[];
   chips: C[];
   onChip: (chip: C) => void;
@@ -63,6 +68,7 @@ export function ChatPane<C extends ChipBase>({ messages, chips, onChip, onSubmit
   /** Slot above the composer — date pickers, file inputs, etc. */
   extra?: React.ReactNode;
   placeholder?: string;
+  tiles?: PromptTile[];
 }) {
   const [text, setText] = useState('');
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -103,6 +109,24 @@ export function ChatPane<C extends ChipBase>({ messages, chips, onChip, onSubmit
             </div>
           );
         })}
+        {tiles && tiles.length > 0 && messages.length <= 1 && !typing && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+            {tiles.map((t, i) => (
+              <button
+                key={t.title}
+                onClick={() => onSubmit(t.seed)}
+                className="ipb-enter text-left rounded-lg border border-ink/12 hover:border-ink/40 hover:-translate-y-0.5 transition-all p-3 cursor-pointer bg-transparent flex items-start gap-2.5"
+                style={{ ['--d' as string]: `${i * 70}ms` }}
+              >
+                <span className="w-8 h-8 rounded-md bg-lime text-obsidian inline-flex items-center justify-center text-[15px] shrink-0">{t.glyph}</span>
+                <span className="min-w-0">
+                  <span className="block font-mono text-[12px] font-bold text-ink">{t.title}</span>
+                  <span className="block font-mono text-[10.5px] text-ink/45 leading-snug mt-0.5">{t.sub}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {typing && <TypingDots />}
         {chips.length > 0 && !typing && (
           <div className="flex flex-wrap gap-1.5 pt-1">

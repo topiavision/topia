@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 
 const ORANGE = 'var(--orange, #FF5C34)';
 
-export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas }: {
+export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas, variant = 'modal', showClose = true }: {
   title: string;
   /** Permanent escape hatch — "Use the form instead" — visible at every stage. */
   headerLink?: { label: string; onClick: () => void };
@@ -22,13 +22,21 @@ export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas }
   onRequestClose: () => void;
   chat: React.ReactNode;
   canvas: React.ReactNode;
+  /** 'modal' portals a takeover (default). 'page' renders in-flow — the
+   * v0-style create pages where the builder IS the page: no backdrop, no
+   * scroll lock, nav stays reachable. */
+  variant?: 'modal' | 'page';
+  /** Hide the × when there's nowhere meaningful to close to. */
+  showClose?: boolean;
 }) {
+  const isModal = variant === 'modal';
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
   /* Body scroll lock — position:fixed + top offset, because iOS Safari
    * ignores overflow:hidden alone. Restores scroll on close. */
   useEffect(() => {
+    if (!isModal) return;
     const scrollY = window.scrollY;
     const { style } = document.body;
     const prev = { position: style.position, top: style.top, width: style.width, overflow: style.overflow };
@@ -49,12 +57,13 @@ export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas }
   }, []);
 
   useEffect(() => {
+    if (!isModal) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onRequestClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onRequestClose]);
 
-  if (!mounted) return null;
+  if (isModal && !mounted) return null;
 
   const header = (
     <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-ink/10 shrink-0">
@@ -70,10 +79,36 @@ export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas }
             {headerLink.label}
           </button>
         )}
-        <button onClick={onRequestClose} aria-label="Close" className="font-mono text-[16px] leading-none text-ink/50 hover:text-ink cursor-pointer bg-transparent border-none px-1">×</button>
+        {showClose && (
+          <button onClick={onRequestClose} aria-label="Close" className="font-mono text-[16px] leading-none text-ink/50 hover:text-ink cursor-pointer bg-transparent border-none px-1">×</button>
+        )}
       </span>
     </div>
   );
+
+  if (!isModal) {
+    return (
+      <div className="w-full border border-ink/10 rounded-2xl overflow-hidden bg-[var(--page-bg)]" style={{ boxShadow: `0 0 48px color-mix(in srgb, var(--orange) 8%, transparent)` }}>
+        {/* Mobile: canvas band above chat, in flow — the browser handles the
+            keyboard, the nav stays reachable. */}
+        <div className="sm:hidden flex flex-col" style={{ minHeight: 'calc(100dvh - var(--nav-height) - 24px)' }}>
+          {header}
+          <div className="shrink-0 max-h-[40vh] overflow-y-auto border-b border-ink/10" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {canvas}
+          </div>
+          <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
+        </div>
+        {/* Desktop: the full-page two-pane — chat left, live preview right. */}
+        <div className="hidden sm:grid grid-cols-[minmax(340px,1fr)_1.3fr]" style={{ height: 'calc(100dvh - var(--nav-height) - 4rem)', minHeight: 480 }}>
+          <div className="flex flex-col min-h-0 border-r border-ink/10">
+            {header}
+            <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
+          </div>
+          <div className="overflow-y-auto min-h-0">{canvas}</div>
+        </div>
+      </div>
+    );
+  }
 
   const content = (
     <>

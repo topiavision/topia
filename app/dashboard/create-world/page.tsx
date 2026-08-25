@@ -87,10 +87,12 @@ export default function CreateWorldPage() {
   // holds a real privyId.
   if (mode === 'bot') {
     // Hold blank (not the form — no flash) until Privy hands us the user.
-    if (!user) return <div className="max-w-2xl" />;
+    if (!user) return <div className="max-w-4xl" />;
+    // v0-style: the builder IS the page — chat left, world card right.
     return (
-      <div className="max-w-2xl">
+      <div className="max-w-4xl">
         <WorldBuilder
+          variant="page"
           privyId={user.id}
           onExitToForm={() => setMode('form')}
           onClose={() => router.push('/dashboard')}

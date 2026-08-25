@@ -19,6 +19,13 @@ export const COPY = {
   saveFailed: (serverError: string | null) => serverError || `Could not create the world — try again?`,
 } as const;
 
+export const TILES = [
+  { glyph: '📓', title: 'A zine collective', sub: '“a monthly poetry zine collective called Night Garden”', seed: 'a monthly poetry zine collective called Night Garden' },
+  { glyph: '🎛', title: 'A music label', sub: '“an independent label for ambient music, based in LA”', seed: 'an independent music label called Low End, based in Los Angeles' },
+  { glyph: '🎞', title: 'A film club', sub: '“a documentary screening club, monthly at the co-op”', seed: 'a documentary film screening club called Reel Talk' },
+  { glyph: '🫂', title: 'A community', sub: '“a community for late-night makers and their projects”', seed: 'a community for late-night makers called After Hours' },
+];
+
 export const CHIP = {
   skip: 'Skip',
   upload: 'Upload an image…',

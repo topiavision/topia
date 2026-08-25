@@ -14,7 +14,7 @@ import { ChatPane } from '../ChatPane';
 import { useBuilderChat } from '../useBuilderChat';
 import { llmParse } from '../llmParse';
 import { ProjectCanvas } from './ProjectCanvas';
-import { COPY, CHIP, type Stage } from './script';
+import { COPY, CHIP, TILES, type Stage } from './script';
 
 /* The Project Builder — bot-first project creation for a world. The form
  * this replaces collects 10 fields across three repeater UIs (~20 clicks);
@@ -455,6 +455,7 @@ export function ProjectBuilder({ worldId, privyId, members, allTools, seedText, 
           typing={typing}
           extra={uploadSlot}
           placeholder={stage === 'tools' ? 'Search tools…' : undefined}
+          tiles={TILES.filter((t) => t.seed)}
         />
       }
       canvas={<ProjectCanvas draft={draft} />}
