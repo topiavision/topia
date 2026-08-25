@@ -36,6 +36,13 @@ type Chip =
   | { label: string; t: 'done'; accent?: boolean }
   | { label: string; t: 'cancel' };
 
+const TILES = [
+  { glyph: '✎', title: 'Update the tagline', sub: '“tagline: an adhd community building in public”', seed: 'update the tagline' },
+  { glyph: '🖼', title: 'Swap the cover', sub: 'upload a new cover or header image', seed: 'swap the cover image' },
+  { glyph: '⚒', title: 'Add tools', sub: '“add the tool Figma”', seed: 'update the tools' },
+  { glyph: '+', title: 'Add a project', sub: 'opens the Project Builder', seed: 'add a project' },
+];
+
 const BASE_CHIPS: Chip[] = [
   { label: 'Tagline', t: 'suggest', seed: 'tagline: ' },
   { label: 'Add a tool', t: 'suggest', seed: 'add the tool ' },
@@ -107,6 +114,11 @@ export function WorldManager({ world, allTools, privyId, seedText, onFieldSaved,
         saveAnd(`Story updated.`, () => putField('description', cmd.text));
         break;
       case 'add_tool': {
+        if (cmd.name.replace(/[^a-z0-9]/gi, '').length < 2) {
+          pushBot(`Which tool? Say it like “add the tool Figma”.`);
+          setChips(BASE_CHIPS);
+          break;
+        }
         // Match against the directory so the chip links on the world page;
         // unmatched names still save (free-text tools are a legacy reality).
         const match = allTools.find((t) => normalizeToolName(t.name) === normalizeToolName(cmd.name));
@@ -163,7 +175,13 @@ export function WorldManager({ world, allTools, privyId, seedText, onFieldSaved,
         setTimeout(() => router.push(`/dashboard/worlds/${world.slug}/in-process`), 900);
         break;
       default:
-        pushBot(`Didn't catch that — I'm simpler than I look. Try “tagline: …”, “add the tool Figma”, “instagram: <link>”, or the buttons below.`);
+        if (/^update the tagline\.?$/i.test(text)) {
+          pushBot(`Give me the new tagline — “tagline: an adhd community building in public”.`);
+        } else if (/^update the tools\.?$/i.test(text)) {
+          pushBot(`Name them one at a time — “add the tool Figma”, “remove the tool Notion”.`);
+        } else {
+          pushBot(`Didn't catch that — I'm simpler than I look. Try “tagline: …”, “add the tool Figma”, “instagram: <link>”, or the buttons below.`);
+        }
         setChips(BASE_CHIPS);
     }
   }, [pushUser, pushBot, setChips, saveAnd, putField, allTools, onLaunchProject, router, world.slug]);
@@ -256,6 +274,7 @@ export function WorldManager({ world, allTools, privyId, seedText, onFieldSaved,
           typing={typing}
           extra={uploadSlot}
           placeholder="tagline: …  ·  add the tool Figma  ·  instagram: link"
+          tiles={TILES}
         />
       }
       canvas={<WorldCanvas draft={canvasDraft} />}

@@ -12,7 +12,7 @@ import { ChatPane } from '../ChatPane';
 import { useBuilderChat } from '../useBuilderChat';
 import { llmParse } from '../llmParse';
 import { EventCanvas } from './EventCanvas';
-import { COPY, CHIP, type Stage } from './script';
+import { COPY, CHIP, TILES, type Stage } from './script';
 
 /* The Event Builder — conversational front porch for the ONE EventComposer.
  * It collects, the composer publishes: on handoff the page renders the
@@ -29,9 +29,10 @@ type Chip =
   | { label: string; t: 'open_composer'; accent?: boolean }
   | { label: string; t: 'cancel' };
 
-export function EventBuilder({ privyId, seedText, onHandoff, onClose }: {
+export function EventBuilder({ privyId, seedText, onHandoff, onClose, variant }: {
   privyId: string;
   seedText?: string;
+  variant?: 'modal' | 'page';
   /** The page takes over from here: render EventComposer with these props. */
   onHandoff: (composerProps: ReturnType<typeof draftToComposer>) => void;
   onClose: () => void;
@@ -248,6 +249,8 @@ export function EventBuilder({ privyId, seedText, onHandoff, onClose }: {
   return (
     <BuilderShell
       title="Event Builder"
+      variant={variant}
+      showClose={variant !== 'page'}
       headerLink={{ label: 'Use the form instead', onClick: onClose }}
       onRequestClose={requestClose}
       chat={
@@ -258,6 +261,7 @@ export function EventBuilder({ privyId, seedText, onHandoff, onClose }: {
           onSubmit={handleText}
           disabled={false}
           typing={typing}
+          tiles={TILES}
         />
       }
       canvas={<EventCanvas draft={draft} />}

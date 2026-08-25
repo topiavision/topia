@@ -13,7 +13,7 @@ import { useBuilderChat } from '../../../builder/useBuilderChat';
 import { EraDateField, type Precision } from '../../InProcessFields';
 import type { EraMilestoneView, EraView, ProjectOption } from '../types';
 import type { GoalMap } from '../funding/types';
-import { COPY, CHIP, type Stage } from './script';
+import { COPY, CHIP, CREATE_TILES, EDIT_TILES, type Stage } from './script';
 import type { Chip } from './chips';
 import { DraftCanvas } from './DraftCanvas';
 
@@ -410,6 +410,43 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
       dispatch({ kind: 'set_goal', ref: { index: pendingIntent.index }, cents });
       return;
     }
+    // The empty-state tiles speak in these phrases — route them to the same
+    // guided flows as their chips instead of the raw grammar.
+    if (stage === 'refine') {
+      if (/^mark (?:one|a milestone) done\.?$/i.test(text)) {
+        pushBot(COPY.markDonePrompt);
+        setChips([
+          ...(draftRef.current?.milestones ?? []).slice(0, 8).map((m, i) => ({
+            label: m.title, t: 'pick_ms' as const, index: i,
+            cmd: { kind: 'set_status', ref: { index: i }, status: 'done' } as BuilderCommand,
+          })),
+          { label: CHIP.cancel, t: 'cancel' as const },
+        ]);
+        return;
+      }
+      if (/^add a milestone\.?$/i.test(text)) {
+        setPendingIntent({ type: 'add' });
+        pushBot(COPY.addPrompt);
+        setChips([{ label: CHIP.cancel, t: 'cancel' as const }]);
+        return;
+      }
+      if (/^change the timeline\.?$/i.test(text)) {
+        pushBot(COPY.timeframePrompt);
+        setChips([{ label: CHIP.cancel, t: 'cancel' as const }]);
+        return;
+      }
+      if (/^fund a milestone\.?$/i.test(text) && canFund) {
+        pushBot(COPY.fundPickPrompt);
+        setChips([
+          ...(draftRef.current?.milestones ?? []).slice(0, 8).map((m, i) => ({
+            label: m.goalCents != null ? `${m.title} ·$` : m.title,
+            t: 'pick_ms' as const, index: i, goal: true,
+          })),
+          { label: CHIP.cancel, t: 'cancel' as const },
+        ]);
+        return;
+      }
+    }
     const cmd = parseUtterance(text, new Date());
     if (stage === 'timeframe') {
       if (cmd.kind === 'set_timeframe') {
@@ -604,6 +641,7 @@ export function RoadmapBuilder({ worldId, projects, projectScope, privyId, canFu
           disabled={stage === 'saving' || stage === 'done'}
           typing={typing}
           extra={datePicker}
+          tiles={editing ? EDIT_TILES.filter((t) => t.glyph !== '$' || canFund) : (scopedProject || projects.length === 0 ? CREATE_TILES : undefined)}
         />
       }
       canvas={

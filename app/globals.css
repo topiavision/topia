@@ -563,6 +563,13 @@ h3 {
 }
 .ipb-orb { display: inline-block; animation: ipbOrb 2.8s ease-in-out infinite; }
 
+/* The floating assistant orb breathes. */
+@keyframes ipbFloatGlow {
+  0%, 100% { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 color-mix(in srgb, var(--orange) 30%, transparent); }
+  50% { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4), 0 0 18px 4px color-mix(in srgb, var(--orange) 35%, transparent); }
+}
+.ipb-float { animation: ipbFloatGlow 2.6s ease-in-out infinite; }
+
 /* Typing indicator dots. */
 @keyframes ipbDot {
   0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
@@ -597,6 +604,7 @@ h3 {
   .ipb-materialize,
   .ipb-materialize > button,
   .ipb-now-glow,
+  .ipb-float,
   .ipb-orb,
   .ipb-dot,
   .ipb-caret {

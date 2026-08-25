@@ -13,7 +13,7 @@ import { ChatPane } from '../ChatPane';
 import { useBuilderChat } from '../useBuilderChat';
 import { llmParse } from '../llmParse';
 import { WorldCanvas } from './WorldCanvas';
-import { COPY, CHIP, type Stage } from './script';
+import { COPY, CHIP, TILES, type Stage } from './script';
 
 /* The World Builder — bot-first world creation. Five fields, one required;
  * the bot's real job is capturing category and country well, because they're
@@ -39,8 +39,9 @@ const categoryChips = (): Chip[] => [
   { label: CHIP.skip, t: 'skip' },
 ];
 
-export function WorldBuilder({ privyId, seedText, onExitToForm, onClose }: {
+export function WorldBuilder({ privyId, seedText, onExitToForm, onClose, variant }: {
   privyId: string;
+  variant?: 'modal' | 'page';
   /** Text from an AssistantBar — processed as the first user message. */
   seedText?: string;
   /** The permanent escape hatch — swaps to the untouched classic form. */
@@ -310,6 +311,8 @@ export function WorldBuilder({ privyId, seedText, onExitToForm, onClose }: {
   return (
     <BuilderShell
       title="World Builder"
+      variant={variant}
+      showClose={variant !== 'page'}
       headerLink={{ label: 'Use the form instead', onClick: onExitToForm }}
       onRequestClose={requestClose}
       chat={
@@ -321,6 +324,7 @@ export function WorldBuilder({ privyId, seedText, onExitToForm, onClose }: {
           disabled={stage === 'saving'}
           typing={typing}
           extra={uploadSlot}
+          tiles={TILES}
         />
       }
       canvas={<WorldCanvas draft={draft} />}

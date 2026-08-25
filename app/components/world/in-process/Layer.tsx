@@ -12,7 +12,8 @@ import { HowThisWorks } from './HowThisWorks';
 import { EraForm } from './EraForm';
 import { EraSection } from './EraSection';
 import { RoadmapBuilder } from './builder/RoadmapBuilder';
-import { AssistantBar } from '../../builder/AssistantBar';
+import { AssistantLauncher } from '../../builder/AssistantLauncher';
+import { FloatingAssistant } from '../../builder/FloatingAssistant';
 import type { EraView, ProjectOption } from './types';
 import { useFundingGoals } from './funding/useFundingGoals';
 import { FundingReturn } from './funding/FundingReturn';
@@ -111,14 +112,8 @@ export default function InProcessLayer({
    * switches to it first (loose token match on project name / era title). */
   const launchAssistant = (seed: string) => {
     const wantsNew = visible.length === 0 || /\b(?:new|another|start)\b[^.]*\broadmap\b|^new\b/i.test(seed);
-    if (wantsNew) { setBotLaunch({ mode: 'create', seed }); return; }
-    const low = seed.toLowerCase();
-    const named = visible.find((e) =>
-      (e.projectName && low.includes(e.projectName.toLowerCase())) ||
-      low.includes(e.title.toLowerCase()));
-    const target = named ?? shownEras[0];
-    if (named) setPickedGroup(named.projectId ?? '__world__');
-    setBotLaunch({ mode: 'edit', seed, era: target });
+    if (wantsNew) { setBotLaunch({ mode: 'create', seed: seed || undefined }); return; }
+    setBotLaunch({ mode: 'edit', seed: seed || undefined, era: shownEras[0] });
   };
 
   if (visible.length === 0 && !creating) {
@@ -134,10 +129,14 @@ export default function InProcessLayer({
                 what&apos;s in motion, what&apos;s next. {!projectScope && 'No project yet? You can make one as you go.'}
               </p>
               <div className="w-full max-w-xl text-left">
-                <AssistantBar
-                  placeholder="Describe the roadmap — “a podcast called Signal, 8 episodes, next spring”…"
-                  suggestions={['Build me a roadmap', 'An album out in June', 'A film, premiering next year']}
-                  onLaunch={(seed) => setBotLaunch({ mode: 'create', seed: /^build me a roadmap$/i.test(seed) ? undefined : seed })}
+                <AssistantLauncher
+                  heading="Build the roadmap"
+                  prompts={[
+                    'a podcast called Signal, 8 episodes…',
+                    'an album, out by December…',
+                    'a documentary, premiering next fall…',
+                  ]}
+                  onOpen={() => setBotLaunch({ mode: 'create' })}
                 />
               </div>
               <button id="tour-ip-start" onClick={startCreate} className={btnGhost}>+ Start a roadmap instead</button>
@@ -196,11 +195,17 @@ export default function InProcessLayer({
         )}
         {canEdit && (
           <div className="pt-4">
-            <AssistantBar
+            <AssistantLauncher
+              compact
               id="tour-ip-assistant"
-              placeholder="Build or change the roadmap — “mark mixing done”, “add a milestone”…"
-              suggestions={['Mark a milestone done', 'Add a milestone', 'Change the timeline', 'New roadmap']}
-              onLaunch={launchAssistant}
+              heading="Change the roadmap"
+              prompts={[
+                'mark a milestone done…',
+                'add a milestone — “vinyl drop in March”…',
+                'finish by December…',
+                'fund a milestone…',
+              ]}
+              onOpen={() => launchAssistant('')}
             />
           </div>
         )}
@@ -240,6 +245,7 @@ export default function InProcessLayer({
       )}
       <HowThisWorks canEdit={canEdit} />
       <Tour tourKey="inprocess" privyId={privyId} enabled={canEdit} steps={IP_TOUR} />
+      {canEdit && <FloatingAssistant onOpen={() => launchAssistant('')} hidden={botLaunch !== null} label="Change the roadmap" />}
       {botLaunch && (
         <RoadmapBuilder
           worldId={worldId}

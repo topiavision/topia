@@ -14,6 +14,13 @@ export const COPY = {
   handoffNote: `Opening the composer with everything filled in…`,
 } as const;
 
+export const TILES = [
+  { glyph: '🎧', title: 'Listening party', sub: '“rooftop listening party, Sept 12, 7-10pm, 60 people”', seed: 'a rooftop listening party, Sept 12, 7-10pm, 60 people' },
+  { glyph: '🖼', title: 'Gallery opening', sub: '“gallery opening night, free entry, first Friday of October”', seed: 'a gallery opening night, October 2, 6-9pm, free entry' },
+  { glyph: '🎟', title: 'Ticketed workshop', sub: '“$25 early bird limited to 50, $40 at the door”', seed: 'a hands-on workshop, $25 early bird limited to 50, $40 at the door' },
+  { glyph: '🎤', title: 'Show / performance', sub: '“a live show at The Deep End, doors at 8”', seed: 'a live show at The Deep End, doors at 8pm' },
+];
+
 export const CHIP = {
   skip: 'Skip',
   openComposer: 'Open it in the composer ✦',

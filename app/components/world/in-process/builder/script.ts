@@ -38,6 +38,19 @@ export const COPY = {
     `Roadmap saved ✓ — but ${n} funding goal${n > 1 ? 's' : ''} didn't stick${serverError ? ` (${serverError})` : ''}. You can add ${n > 1 ? 'them' : 'it'} anytime from the milestone editor on the timeline.`,
 } as const;
 
+export const CREATE_TILES = [
+  { glyph: '🎙', title: 'A podcast', sub: '“a podcast called Signal, 8 episodes, wrapping next spring”', seed: 'a podcast called Signal, 8 episodes, wrapping next spring' },
+  { glyph: '💿', title: 'An album', sub: '“an album, out by December”', seed: 'an album, out by December' },
+  { glyph: '🎞', title: 'A film', sub: '“a documentary, premiering next fall”', seed: 'a documentary, premiering next fall' },
+  { glyph: '✦', title: 'Something else', sub: 'a simple arc you reshape as you go', seed: 'something new — start me with a simple arc' },
+];
+export const EDIT_TILES = [
+  { glyph: '✓', title: 'Mark a milestone done', sub: 'pick one, it saves instantly', seed: 'mark one done' },
+  { glyph: '+', title: 'Add a milestone', sub: '“vinyl drop in March”', seed: 'add a milestone' },
+  { glyph: '↔', title: 'Change the timeline', sub: '“finish by December” re-flows the dates', seed: 'change the timeline' },
+  { glyph: '$', title: 'Fund a milestone', sub: 'set a goal backers can support', seed: 'fund a milestone' },
+];
+
 export const CHIP = {
   newProject: 'A new project',
   worldWide: 'No project — world-wide',
