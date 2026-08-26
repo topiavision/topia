@@ -40,7 +40,12 @@ const ROUTES: Record<'event' | 'world' | 'project' | 'roadmap' | 'profile', { hr
   profile: { href: '/profile?assistant=1', title: 'Profile Assistant', blurb: 'opening your passport…', carrySeed: false },
 };
 
-export function TopiaAgent({ privyId }: { privyId: string }) {
+export function TopiaAgent({ privyId, onExit }: {
+  privyId: string;
+  /** Set when the agent runs as the global takeover — × closes the overlay
+   * instead of navigating, and a routing handoff closes it behind itself. */
+  onExit?: () => void;
+}) {
   const router = useRouter();
   const { messages, chips, setChips, typing, pushUser, pushBot, pushBotAfter } = useBuilderChat<Chip>(() => ({
     text: `Topia's assistant ✦ Ask for anything — people, tools, events — or tell me what to make.`,
@@ -105,7 +110,7 @@ export function TopiaAgent({ privyId }: { privyId: string }) {
         if (route.carrySeed && intent.seed) {
           try { sessionStorage.setItem(ASSISTANT_SEED_KEY, intent.seed); } catch { /* best-effort */ }
         }
-        setTimeout(() => router.push(route.href), 1100);
+        setTimeout(() => { router.push(route.href); onExit?.(); }, 1100);
         return;
       }
       case 'help':
@@ -128,7 +133,7 @@ export function TopiaAgent({ privyId }: { privyId: string }) {
           return `Not sure yet — I can find people, tools, worlds, events and grants, or start anything on the cards. Try “show me producers” or “host a listening party”.`;
         })());
     }
-  }, [pushBot, pushBotAfter, runDiscovery, router, privyId, setChips]);
+  }, [pushBot, pushBotAfter, runDiscovery, router, privyId, setChips, onExit]);
 
   const handleText = useCallback((raw: string) => {
     const text = raw.trim();
@@ -145,9 +150,10 @@ export function TopiaAgent({ privyId }: { privyId: string }) {
   return (
     <BuilderShell
       title="Topia Assistant"
-      variant="page"
+      variant={onExit ? 'modal' : 'page'}
       onRequestClose={() => {
-        // Landed here from the nav/palette — × means "take me back".
+        if (onExit) { onExit(); return; }
+        // Landed on /assistant directly — × means "take me back".
         if (window.history.length > 1) window.history.back();
         else router.push('/home');
       }}
