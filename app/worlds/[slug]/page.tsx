@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, use, useMemo, useRef, useCallback } from 'react';
+import { InkStamp } from '../../components/elements/InkStamp';
 import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import PageShell from '../../components/PageShell';
@@ -188,7 +189,7 @@ export default function WorldPage({ params }: { params: Promise<{ slug: string }
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [allTools, setAllTools] = useState<ToolMiniData[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user, authenticated } = usePrivy();
+  const { user, authenticated, login } = usePrivy();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   // True once the visitor deliberately picks a tab (click or arrow key) —
@@ -196,6 +197,7 @@ export default function WorldPage({ params }: { params: Promise<{ slug: string }
   const userPickedSection = useRef(false);
   const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(false);
+  const [stampBurst, setStampBurst] = useState(false);
   const [followPending, setFollowPending] = useState(false);
   const [watchersOpen, setWatchersOpen] = useState(false);
 
@@ -281,6 +283,7 @@ export default function WorldPage({ params }: { params: Promise<{ slug: string }
   async function toggleWorldFollow() {
     if (!world || !user?.id || followPending) return;
     const wasFollowing = following;
+    if (!wasFollowing) { setStampBurst(true); setTimeout(() => setStampBurst(false), 1600); }
     setFollowPending(true);
     // optimistic
     setFollowing(!wasFollowing);
@@ -595,10 +598,15 @@ export default function WorldPage({ params }: { params: Promise<{ slug: string }
                           </div>
                         )}
 
-                        <div className="py-3 border-b border-ink/[0.05] last:border-b-0 flex flex-wrap items-center gap-1.5">
-                          {authenticated && (
+                        <div className="relative py-3 border-b border-ink/[0.05] last:border-b-0 flex flex-wrap items-center gap-1.5">
+                          {stampBurst && (
+                            <span className="absolute -top-8 left-16 z-20 pointer-events-none">
+                              <InkStamp lines={['NOW', 'WATCHING']} tone="lime" size={68} />
+                            </span>
+                          )}
+                          {(
                             <button
-                              onClick={toggleWorldFollow}
+                              onClick={authenticated ? toggleWorldFollow : () => login()}
                               disabled={followPending}
                               className={`inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider rounded-sm px-2.5 py-1 cursor-pointer transition-colors border ${
                                 following

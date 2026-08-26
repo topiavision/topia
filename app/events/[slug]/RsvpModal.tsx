@@ -10,6 +10,7 @@ import { avatarColor, avatarTextColor, avatarInitial, isRealPhoto } from '../../
 import { socialHandle } from '../../../lib/socials';
 import { resizeAndUploadAvatar } from '../../../lib/uploadImage';
 import TopiaLoader from '../../components/TopiaLoader';
+import { InkStamp } from '../../components/elements/InkStamp';
 import RoleTagPicker from '../../components/RoleTagPicker';
 
 // Avatars resize + upload to Blob (was inline base64). See lib/uploadImage.
@@ -720,6 +721,9 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
             <div>
               {resultStatus === 'going' ? (
                 <>
+                  <div className="flex justify-center mb-4">
+                    <InkStamp lines={['ENTRY', 'GRANTED', new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()]} />
+                  </div>
                   <h3 className="font-basement text-[26px] font-black uppercase leading-none mb-1.5" style={{ color: 'var(--foreground)' }}>You&apos;re going!</h3>
                   <p className="font-mono text-[12px] opacity-50 mb-5" style={{ color: 'var(--foreground)' }}>You&apos;re on the list for {eventName}.</p>
 
