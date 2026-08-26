@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import GlitchType from './components/ui/GlitchType';
@@ -193,12 +194,11 @@ export default function Home() {
         )}
       </div>
 
-      {/* BOTTOM — massive ENTER TOPIA */}
-      <div
-        className={`absolute bottom-6 md:bottom-10 left-6 md:left-10 right-6 md:right-10 z-[10] transition-all duration-1000 ${
-          phase >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-        }`}
-      >
+      {/* BOTTOM — massive ENTER TOPIA. Visible (and legible) from first
+          paint: the button used to exist invisibly until phase 6–7, leaving
+          a ~4s window where the only interactive element on the page had no
+          label. The phased choreography now only drives the progress line. */}
+      <div className="absolute bottom-6 md:bottom-10 left-6 md:left-10 right-6 md:right-10 z-[10]">
         {/* Tagline */}
         <div className="flex justify-between items-end mb-2">
           <span className="font-mono text-[8px] text-[#1a1a1a]/40 uppercase tracking-[2px]">
@@ -213,13 +213,13 @@ export default function Home() {
         <button onClick={() => { if (ready) login(); }} className="group block no-underline w-full text-left bg-transparent border-none cursor-pointer p-0">
           <div className="flex items-baseline justify-between">
             <span className="font-basement font-black text-[clamp(48px,10vw,120px)] uppercase text-[#1a1a1a] leading-none group-hover:text-bone transition-colors duration-300">
-              {phase >= 7 ? <GlitchType text="ENTER TOPIA" speed={50} /> : ''}
+              ENTER TOPIA
             </span>
             <span className="font-mono text-[#1a1a1a]/50 group-hover:text-bone/60 transition-colors duration-300 text-[clamp(24px,4vw,48px)]">
               →
             </span>
           </div>
-          {/* Progress line */}
+          {/* Progress line — still rides the animation phases (decorative) */}
           <div className="mt-3 h-[2px] bg-[#1a1a1a]/10 rounded-full overflow-hidden">
             <div
               className={`h-full bg-[#1a1a1a]/40 rounded-full transition-all ease-out ${
@@ -232,6 +232,16 @@ export default function Home() {
             events, worlds &amp; passports for the creative underground — join in one tap.
           </span>
         </button>
+
+        {/* Quiet no-login exits — the splash must not be a login wall */}
+        <div className="mt-3 flex items-center flex-wrap gap-x-2 gap-y-1 font-mono text-[9px] md:text-[10px] uppercase tracking-[2px]">
+          <span className="text-[#1a1a1a]/40">or look around first</span>
+          <Link href="/worlds" className="no-underline border-b border-[#1a1a1a]/25 text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:border-[#1a1a1a]/60 transition-colors pb-px">worlds</Link>
+          <span className="text-[#1a1a1a]/30">·</span>
+          <Link href="/events" className="no-underline border-b border-[#1a1a1a]/25 text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:border-[#1a1a1a]/60 transition-colors pb-px">events</Link>
+          <span className="text-[#1a1a1a]/30">·</span>
+          <Link href="/tv" className="no-underline border-b border-[#1a1a1a]/25 text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:border-[#1a1a1a]/60 transition-colors pb-px">tv</Link>
+        </div>
       </div>
     </div>
   );
