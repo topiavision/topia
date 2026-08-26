@@ -1,14 +1,30 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import { useDashboard } from '../_components/DashboardContext';
 
+// useSearchParams needs a Suspense boundary at prerender time.
 export default function DashboardWorldsPage() {
+  return (
+    <Suspense fallback={null}>
+      <DashboardWorldsInner />
+    </Suspense>
+  );
+}
+
+function DashboardWorldsInner() {
   const { worldMemberships, profile } = useDashboard();
   const { user } = usePrivy();
+  const searchParams = useSearchParams();
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Inline are-you-sure state for Archive (restore needs no confirm).
+  const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
+  // ⌘K "Add a project" lands here with ?project=1 — projects live inside
+  // worlds, so the banner points at the world cards below.
+  const [projectBannerDismissed, setProjectBannerDismissed] = useState(false);
   // Optimistic published overrides keyed by worldId (membership list is
   // context-derived, so we apply local state after archive/restore).
   const [pubOverride, setPubOverride] = useState<Record<string, boolean>>({});
@@ -67,6 +83,22 @@ export default function DashboardWorldsPage() {
           </span>
         </div>
       </div>
+
+      {/* "Add a project" door (⌘K) — a project starts inside a world */}
+      {searchParams.get('project') === '1' && !projectBannerDismissed && sortedWorlds.length > 0 && (
+        <div className="border border-ink/[0.08] rounded-lg bg-[var(--page-bg)] px-4 py-3 mb-4 flex items-start justify-between gap-3">
+          <p className="font-mono text-[12px] text-ink/70 leading-relaxed">
+            <span className="font-bold text-ink uppercase tracking-[1px]">Pick a world</span> — projects live inside worlds. Open one and hit + Project.
+          </p>
+          <button
+            onClick={() => setProjectBannerDismissed(true)}
+            aria-label="Dismiss"
+            className="font-mono text-[14px] text-ink/40 hover:text-ink transition bg-transparent border-none cursor-pointer leading-none shrink-0"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {sortedWorlds.length === 0 ? (
         <div className="border border-ink/[0.08] rounded-lg bg-[var(--page-bg)] p-10 text-center">
@@ -138,14 +170,16 @@ export default function DashboardWorldsPage() {
                     </Link>
                     {wm.role === 'owner' && (
                       published ? (
-                        <button
-                          onClick={() => setPublished(wm.worldId, false)}
-                          disabled={busyId === wm.worldId}
-                          className="font-mono text-[10px] uppercase tracking-[1px] text-orange border border-ink/15 hover:border-orange/50 px-2.5 py-1 rounded-sm transition disabled:opacity-40 cursor-pointer bg-transparent"
-                          title="Hide from the public site (recoverable)"
-                        >
-                          {busyId === wm.worldId ? '…' : 'Archive'}
-                        </button>
+                        confirmArchiveId !== wm.worldId && (
+                          <button
+                            onClick={() => setConfirmArchiveId(wm.worldId)}
+                            disabled={busyId === wm.worldId}
+                            className="font-mono text-[10px] uppercase tracking-[1px] text-orange border border-ink/15 hover:border-orange/50 px-2.5 py-1 rounded-sm transition disabled:opacity-40 cursor-pointer bg-transparent"
+                            title="Hide from the public site (recoverable)"
+                          >
+                            {busyId === wm.worldId ? '…' : 'Archive'}
+                          </button>
+                        )
                       ) : (
                         <button
                           onClick={() => setPublished(wm.worldId, true)}
@@ -158,6 +192,31 @@ export default function DashboardWorldsPage() {
                       )
                     )}
                   </div>
+                  {/* What Archive means, in plain sight — not tooltip-only */}
+                  {wm.role === 'owner' && published && confirmArchiveId !== wm.worldId && (
+                    <p className="font-mono text-[9px] text-ink/35 mt-2">
+                      Archive hides it from the public site — recoverable anytime.
+                    </p>
+                  )}
+                  {/* Inline are-you-sure before archiving (same idiom as the members page) */}
+                  {wm.role === 'owner' && published && confirmArchiveId === wm.worldId && (
+                    <div className="flex items-center gap-2 flex-wrap mt-2.5">
+                      <p className="font-mono text-[10px] text-ink/60">Are you sure? It hides from the public site — recoverable.</p>
+                      <button
+                        onClick={() => { setConfirmArchiveId(null); setPublished(wm.worldId, false); }}
+                        disabled={busyId === wm.worldId}
+                        className="font-mono text-[10px] uppercase tracking-[1px] bg-orange text-obsidian font-bold px-2.5 py-1 rounded-sm hover:opacity-90 transition disabled:opacity-40 cursor-pointer border-none"
+                      >
+                        Yes, archive
+                      </button>
+                      <button
+                        onClick={() => setConfirmArchiveId(null)}
+                        className="font-mono text-[10px] uppercase tracking-[1px] text-ink/60 border border-ink/15 hover:border-ink/40 hover:text-ink px-2.5 py-1 rounded-sm transition cursor-pointer bg-transparent"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );

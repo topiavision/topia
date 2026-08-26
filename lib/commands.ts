@@ -42,10 +42,9 @@ export function buildCommands(opts: {
       },
       { id: 'create-world', label: 'Create a world', group: 'Actions', glyph: '+', keywords: 'new start build', href: '/dashboard/create-world' },
       { id: 'create-event', label: 'Create an event', group: 'Actions', glyph: '+', keywords: 'new host party show gig', href: '/events/create' },
-      // TODO(follow-up): /dashboard/worlds is a list page with no project
-      // form — landing there requires picking a world, then Manage. Making
-      // this one-shot needs a ?project=1 handler on the worlds dashboard.
-      { id: 'create-project', label: 'Add a project', group: 'Actions', glyph: '+', keywords: 'new work portfolio roadmap milestone', href: '/dashboard/worlds' },
+      // Projects live inside worlds — ?project=1 makes the worlds dashboard
+      // show a pick-a-world banner pointing at + Project.
+      { id: 'create-project', label: 'Add a project', group: 'Actions', glyph: '+', keywords: 'new work portfolio roadmap milestone', href: '/dashboard/worlds?project=1' },
       { id: 'submit-tool', label: 'Submit a tool', group: 'Actions', glyph: '⚒', keywords: 'add directory software recommend', href: '/resources/tools?submit=1' },
       { id: 'edit-profile', label: 'Edit your profile', group: 'Actions', glyph: '✎', keywords: 'bio avatar settings socials passport', href: '/profile' },
     );

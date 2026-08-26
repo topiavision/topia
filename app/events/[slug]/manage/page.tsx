@@ -510,10 +510,14 @@ function QuestsTab({ eventId, slug, privyId }: { eventId: string; slug: string; 
       {error && <p className="font-mono text-[12px] mb-3" style={{ color: '#FF5C34' }}>{error}</p>}
 
       {/* Quest list */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1.5">
         <p className="font-mono text-[12px] uppercase tracking-[0.12em] font-bold opacity-60" style={{ color: 'var(--foreground)' }}>Quests</p>
         <button onClick={() => { setPicking((p) => !p); setDraft(null); }} className={btnGhost} style={fieldStyle}>{picking || draft ? 'Cancel' : '+ Add quest'}</button>
       </div>
+      {/* Legend for the colored method pills on each quest card */}
+      <p className="font-mono text-[10px] opacity-45 leading-relaxed mb-3" style={{ color: 'var(--foreground)' }}>
+        QR — guest scans to complete · HOST — you grant it · AUTO — completes on its own
+      </p>
 
       {/* Starter pack — the fastest path from zero to a full first-timer journey */}
       {picking && !draft && (

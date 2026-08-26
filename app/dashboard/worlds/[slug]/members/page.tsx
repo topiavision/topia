@@ -42,6 +42,8 @@ export default function WorldMembersPage() {
   const [memberSuccess, setMemberSuccess] = useState('');
   const [changingRole, setChangingRole] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  // Inline are-you-sure for the member-remove × (same idiom as Leave below).
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
 
@@ -320,15 +322,33 @@ export default function WorldMembersPage() {
                   </span>
                 )}
 
-                {/* Remove button */}
+                {/* Remove button — inline are-you-sure before it fires */}
                 {canRemove(m.role, m.userId) && (
-                  <button
-                    onClick={() => removeMember(m.userId)}
-                    className="font-mono text-[14px] text-ink/30 hover:text-orange transition shrink-0 bg-transparent border-none cursor-pointer leading-none"
-                    title="Remove member"
-                  >
-                    ×
-                  </button>
+                  confirmRemoveId === m.userId ? (
+                    <span className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                      <span className="font-mono text-[10px] text-ink/60">Are you sure?</span>
+                      <button
+                        onClick={() => { setConfirmRemoveId(null); removeMember(m.userId); }}
+                        className="font-mono text-[10px] uppercase tracking-[1px] bg-orange text-obsidian font-bold px-2 py-0.5 rounded-sm hover:opacity-90 transition cursor-pointer border-none"
+                      >
+                        Yes, remove
+                      </button>
+                      <button
+                        onClick={() => setConfirmRemoveId(null)}
+                        className="font-mono text-[10px] uppercase tracking-[1px] text-ink/60 border border-ink/15 hover:border-ink/40 hover:text-ink px-2 py-0.5 rounded-sm transition cursor-pointer bg-transparent"
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmRemoveId(m.userId)}
+                      className="font-mono text-[14px] text-ink/30 hover:text-orange transition shrink-0 bg-transparent border-none cursor-pointer leading-none"
+                      title="Remove member"
+                    >
+                      ×
+                    </button>
+                  )
                 )}
               </div>
             ))}
