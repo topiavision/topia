@@ -24,7 +24,7 @@ export default function DashboardEventsPage() {
         body: JSON.stringify({ privyId: user.id, eventId, published }),
       });
       if (res.ok) refreshEvents();
-      else toast.error(`Couldn't ${published ? 'restore' : 'remove'} the event — try again.`);
+      else toast.error(`Couldn't ${published ? 'publish' : 'unpublish'} the event — try again.`);
     } catch {
       toast.error('Network error — the event was not changed.');
     } finally {
@@ -161,6 +161,11 @@ export default function DashboardEventsPage() {
                     </button>
                   )}
                 </div>
+                {/* Tooltips are invisible on touch — spell out what the
+                    publish state means right under the buttons. */}
+                <p className="font-mono text-[9px] uppercase tracking-[1px] text-ink/40 mt-1.5">
+                  {ev.published ? 'live on the public site' : 'hidden from the public site'}
+                </p>
               </div>
             </div>
           ))}

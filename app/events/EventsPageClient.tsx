@@ -71,11 +71,12 @@ function formatDayChip(iso: string | null): { day: string; mon: string; year: st
 
 /** Build a compact attendance string for an event card.
  * External events hide the RSVP count (we can't track it — it lives on the
- * source platform) and surface "interested" instead. */
+ * source platform) and surface the save count instead. "saved" matches the
+ * star action's own name — "interested" was a gloss nothing else used. */
 function attendanceLine(ev: { rsvpCount: number; interestedCount: number; externalSource?: string | null }): string {
   const parts: string[] = [];
   if (!ev.externalSource && ev.rsvpCount > 0) parts.push(`${ev.rsvpCount} going`);
-  if (ev.interestedCount > 0) parts.push(`${ev.interestedCount} interested`);
+  if (ev.interestedCount > 0) parts.push(`${ev.interestedCount} saved`);
   return parts.join(' · ');
 }
 
@@ -121,7 +122,7 @@ export default function EventsPageClient({
   initialEvents: EventCard[];
   initialCities: string[];
 }) {
-  const { authenticated, user } = usePrivy();
+  const { authenticated, user, login } = usePrivy();
   const toast = useToast();
   const [events, setEvents] = useState<EventCard[]>(initialEvents);
   const [cities, setCities] = useState<string[]>(initialCities);
@@ -312,7 +313,7 @@ export default function EventsPageClient({
                       className="font-mono text-[11px] uppercase tracking-[2px] px-3 py-1.5 rounded-sm hover:opacity-90 transition cursor-pointer border-none no-underline"
                       style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}
                     >
-                      + create event
+                      + Create event
                     </Link>
                   </div>
                 </div>
@@ -435,7 +436,7 @@ export default function EventsPageClient({
                 {loading && events.length === 0 ? (
                   viewMode === 'grid' ? <EventsGridSkeleton /> : <EventsListSkeleton />
                 ) : grouped.length === 0 ? (
-                  <EmptyState tab={tab} search={search} selectedCity={selectedCity} onClear={() => { setSearch(''); setSelectedCity(''); setTab('all'); }} onCreate={() => router.push('/events/create')} />
+                  <EmptyState tab={tab} search={search} selectedCity={selectedCity} authenticated={authenticated} onClear={() => { setSearch(''); setSelectedCity(''); setTab('all'); }} onCreate={() => router.push('/events/create')} onLogin={login} />
                 ) : viewMode === 'grid' ? (
                   grouped.map((group, gi) => (
                     <div key={group.label}>
@@ -1013,10 +1014,29 @@ function EventGridCard({ event, authenticated, onOpen, onToggleRsvp, onToggleSav
   );
 }
 
-function EmptyState({ tab, search, selectedCity, onClear, onCreate }: { tab: Tab; search: string; selectedCity: string; onClear: () => void; onCreate: () => void }) {
+function EmptyState({ tab, search, selectedCity, authenticated, onClear, onCreate, onLogin }: { tab: Tab; search: string; selectedCity: string; authenticated: boolean; onClear: () => void; onCreate: () => void; onLogin: () => void }) {
+  // Logged-out viewers on the account-scoped tabs: "you haven't saved anything"
+  // would be a lie (we don't know), and "+ Create event" is a hidden login
+  // wall. Say what the tab holds and offer the actual door.
+  if (!authenticated && (tab === 'saved' || tab === 'mine')) {
+    const loggedOutLabel = tab === 'saved'
+      ? 'Saved events live on your account.'
+      : "Your hosted and RSVP'd events show up here.";
+    return (
+      <div className="text-center py-16 px-4">
+        <p className="font-mono text-[13px] uppercase tracking-[2px] text-[var(--text-muted)] mb-4">{loggedOutLabel}</p>
+        <button
+          onClick={onLogin}
+          className="font-mono text-[11px] uppercase tracking-[2px] bg-lime text-obsidian font-bold px-4 py-2 rounded-sm hover:opacity-90 transition cursor-pointer border-none"
+        >
+          Log in or sign up →
+        </button>
+      </div>
+    );
+  }
   const label =
     tab === 'saved'    ? "You haven't saved any events yet" :
-    tab === 'mine'     ? "You're not hosting or RSVP'd to anything" :
+    tab === 'mine'     ? "You're not hosting or going to anything yet" :
     tab === 'thisWeek' ? "Nothing this week" :
     tab === 'past'     ? "No past events" :
     search || selectedCity ? "No events match" :
@@ -1037,7 +1057,7 @@ function EmptyState({ tab, search, selectedCity, onClear, onCreate }: { tab: Tab
           onClick={onCreate}
           className="font-mono text-[11px] uppercase tracking-[2px] text-[var(--foreground)]/60 border border-[var(--border-color)] hover:border-[var(--border-color)] px-3 py-1.5 rounded-sm bg-transparent cursor-pointer transition"
         >
-          + create event
+          + Create event
         </button>
       </div>
     </div>
