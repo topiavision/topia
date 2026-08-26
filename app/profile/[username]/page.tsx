@@ -70,7 +70,7 @@ const SECTIONS = [
   { id: 'events',   label: 'EVENTS' },
   { id: 'worlds',   label: 'WORLDS' },
   { id: 'inprocess',label: 'IN PROCESS' },
-  { id: 'toolkit',  label: 'TOOLKIT' },
+  { id: 'toolkit',  label: 'STACK' },
   { id: 'guestbook',label: 'GUESTBOOK' },
 ] as const;
 
@@ -352,7 +352,6 @@ export default function PublicProfilePage() {
                           </div>
                         </div>
                         <span className="font-mono text-[11px] text-ink/40 mt-1">@{username}</span>
-                        <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 ${config.bg} ${config.textOn} inline-block mt-1.5`}>{config.label}</span>
                         <span className="font-mono text-[8px] uppercase tracking-[2px] text-ink/10 mt-2 deco-text" data-deco="P1" />
                       </div>
                     </div>
@@ -374,10 +373,6 @@ export default function PublicProfilePage() {
                         <div>
                           <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 block">handle</span>
                           <span className="font-mono text-[13px] text-ink/60 mt-0.5 block">@{username}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 block">path</span>
-                          <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 ${config.bg} ${config.textOn} inline-block mt-1`}>{config.label}</span>
                         </div>
                       </div>
                       <div className="py-1 border-b border-ink/[0.04] flex items-center justify-between">

@@ -38,7 +38,9 @@ function TopianCard({ p, eager }: { p: TopianProfile; eager: boolean }) {
   const config = p.path && p.path in PATH_CONFIG ? PATH_CONFIG[p.path as UserPath] : null;
   const stripBg = p.isWorldBuilder ? 'bg-lime' : config?.bg ?? 'bg-lime';
   const stripText = p.isWorldBuilder ? 'text-obsidian' : config?.textOn ?? 'text-obsidian';
-  const stripLabel = p.isWorldBuilder ? 'World Builder' : config?.label ?? 'Topian';
+  // Paths are hidden until they mean something (owner decision, Aug 2026):
+  // 'World Builder' is earned (owns a world); everyone else reads Topian.
+  const stripLabel = p.isWorldBuilder ? 'World Builder' : 'Topian';
   const tags = (p.roleTags ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
   const initial = (p.name || p.username || '?')[0]?.toUpperCase();
 

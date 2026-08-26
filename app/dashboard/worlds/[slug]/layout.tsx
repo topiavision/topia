@@ -15,7 +15,7 @@ const HQ_TOUR: TourStep[] = [
   { target: 'tour-hq-details', title: 'Identity lives here', body: 'Name, declaration, cover imagery, links, category — and the live/archive switch. This is what visitors meet first.', place: 'right' },
   { target: 'tour-hq-projects', title: 'The work itself', body: 'Each project gets its own page in your world’s orbit — with credits, links, media, and its own roadmap.', place: 'right' },
   { target: 'tour-hq-inprocess', title: 'Build in public', body: 'Roadmaps + a process log for every project, synced with inprocess.world if you connect. Same editor as your world page’s In Process tab.', place: 'right' },
-  { target: 'tour-hq-members', title: 'Bring your crew', body: 'Invite collaborators as architects — they can build projects, post process updates, and shape the world with you. Done — go build. ✦', place: 'right', nextLabel: 'Done' },
+  { target: 'tour-hq-members', title: 'Bring your crew', body: 'Invite builders and collaborators — they can build projects, post process updates, and shape the world with you. Done — go build. ✦', place: 'right', nextLabel: 'Done' },
 ];
 
 /* ── Context ─────────────────────────────────────────────────── */
