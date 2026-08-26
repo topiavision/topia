@@ -31,6 +31,15 @@ export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas, 
 }) {
   const isModal = variant === 'modal';
   const [mounted, setMounted] = useState(false);
+  // Phones: chat leads, the live preview is a collapsible drawer. Desktop
+  // keeps the two-pane spread. (The old fixed 42% canvas band cut cards in
+  // half and buried the conversation — the founder's exact complaint.)
+  const [canvasOpen, setCanvasOpen] = useState(false);
+  useEffect(() => {
+    const open = () => setCanvasOpen(true);
+    window.addEventListener('topia:open-builder-canvas', open);
+    return () => window.removeEventListener('topia:open-builder-canvas', open);
+  }, []);
   useEffect(() => { setMounted(true); }, []);
 
   /* Body scroll lock — position:fixed + top offset, because iOS Safari
@@ -93,9 +102,23 @@ export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas, 
             keyboard, the nav stays reachable. */}
         <div className="sm:hidden flex flex-col" style={{ minHeight: 'calc(100dvh - var(--nav-height) - 24px)' }}>
           {header}
-          <div className="shrink-0 max-h-[40vh] overflow-y-auto border-b border-ink/10" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {canvas}
-          </div>
+          {(
+          <>
+            <button
+              onClick={() => setCanvasOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-2.5 border-b border-ink/10 bg-transparent cursor-pointer shrink-0"
+              aria-expanded={canvasOpen}
+            >
+              <span className="font-mono text-[10px] font-bold uppercase tracking-[2px] text-ink/50">▤ Live preview</span>
+              <span className="font-mono text-[11px] text-ink/40">{canvasOpen ? 'hide ▴' : 'show ▾'}</span>
+            </button>
+            {canvasOpen && (
+              <div className="shrink-0 max-h-[62%] overflow-y-auto border-b border-ink/10" style={{ WebkitOverflowScrolling: 'touch' }}>
+                {canvas}
+              </div>
+            )}
+          </>
+        )}
           <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
         </div>
         {/* Desktop: the full-page two-pane — chat left, live preview right. */}
@@ -117,9 +140,23 @@ export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas, 
       {/* Mobile: full-bleed takeover; the browser handles the keyboard. */}
       <div className="sm:hidden fixed inset-0 z-[2301] flex flex-col bg-[var(--page-bg)]" style={{ height: '100dvh', paddingTop: 'var(--safe-top, 0px)' }}>
         {header}
-        <div className="shrink-0 max-h-[42%] overflow-y-auto border-b border-ink/10" style={{ WebkitOverflowScrolling: 'touch' }}>
-          {canvas}
-        </div>
+        {(
+          <>
+            <button
+              onClick={() => setCanvasOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-2.5 border-b border-ink/10 bg-transparent cursor-pointer shrink-0"
+              aria-expanded={canvasOpen}
+            >
+              <span className="font-mono text-[10px] font-bold uppercase tracking-[2px] text-ink/50">▤ Live preview</span>
+              <span className="font-mono text-[11px] text-ink/40">{canvasOpen ? 'hide ▴' : 'show ▾'}</span>
+            </button>
+            {canvasOpen && (
+              <div className="shrink-0 max-h-[62%] overflow-y-auto border-b border-ink/10" style={{ WebkitOverflowScrolling: 'touch' }}>
+                {canvas}
+              </div>
+            )}
+          </>
+        )}
         <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
       </div>
       {/* Desktop: the SAME full-screen takeover, two-pane — every assistant

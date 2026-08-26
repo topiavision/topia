@@ -110,18 +110,19 @@ export function ChatPane<C extends ChipBase>({ messages, chips, onChip, onSubmit
           );
         })}
         {tiles && tiles.length > 0 && messages.length <= 1 && !typing && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+          <div className="grid grid-cols-2 gap-2 pt-2">
             {tiles.map((t, i) => (
               <button
                 key={t.title}
                 onClick={() => onSubmit(t.seed)}
-                className="ipb-enter text-left rounded-lg border border-ink/12 hover:border-ink/40 hover:-translate-y-0.5 transition-all p-3 cursor-pointer bg-transparent flex items-start gap-2.5"
+                className="ipb-enter text-left rounded-lg border border-ink/12 hover:border-ink/40 hover:-translate-y-0.5 transition-all p-2.5 sm:p-3 cursor-pointer bg-transparent flex items-center sm:items-start gap-2.5"
                 style={{ ['--d' as string]: `${i * 70}ms` }}
               >
-                <span className="w-8 h-8 rounded-md bg-lime text-obsidian inline-flex items-center justify-center text-[15px] shrink-0">{t.glyph}</span>
+                <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-md bg-lime text-obsidian inline-flex items-center justify-center text-[13px] sm:text-[15px] shrink-0">{t.glyph}</span>
                 <span className="min-w-0">
-                  <span className="block font-mono text-[12px] font-bold text-ink">{t.title}</span>
-                  <span className="block font-mono text-[10.5px] text-ink/45 leading-snug mt-0.5">{t.sub}</span>
+                  <span className="block font-mono text-[11px] sm:text-[12px] font-bold text-ink leading-tight">{t.title}</span>
+                  {/* the example sub-line is desktop flavor — phones get the verb */}
+                  <span className="hidden sm:block font-mono text-[10.5px] text-ink/45 leading-snug mt-0.5">{t.sub}</span>
                 </span>
               </button>
             ))}
