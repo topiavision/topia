@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db, ticketOrders, tickets, users } from '@/lib/db';
 import { stripeClient, isStripeConfigured } from '@/lib/stripe';
 import { fulfillOrder, failOrder } from '@/lib/payments/tickets';
@@ -18,11 +18,21 @@ export async function GET(request: NextRequest) {
     const sp = request.nextUrl.searchParams;
     const orderId = sp.get('orderId');
     const privyId = sp.get('privyId');
-    if (!orderId || !privyId) {
-      return NextResponse.json({ error: 'Missing orderId or privyId' }, { status: 400 });
+    // Guest checkout has no privyId — the buyer email (which they typed at
+    // checkout and which Stripe redirected back with) plus the unguessable
+    // order UUID authorize the poll.
+    const buyerEmail = sp.get('buyerEmail');
+    if (!orderId || (!privyId && !buyerEmail)) {
+      return NextResponse.json({ error: 'Missing orderId or buyer identity' }, { status: 400 });
     }
 
-    const [buyer] = await db.select({ id: users.id }).from(users).where(eq(users.privyId, privyId));
+    let buyer: { id: string } | undefined;
+    if (privyId) {
+      [buyer] = await db.select({ id: users.id }).from(users).where(eq(users.privyId, privyId));
+    } else if (buyerEmail) {
+      [buyer] = await db.select({ id: users.id }).from(users)
+        .where(sql`lower(${users.email}) = ${buyerEmail.trim().toLowerCase()}`);
+    }
     if (!buyer) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
     const [order] = await db

@@ -31,6 +31,9 @@ interface Props {
   slug: string;
   eventName: string;
   privyId: string;
+  /** Guest mode — no login: full name + email identify the RSVP, and the
+   * success step offers the account claim. */
+  guest?: boolean;
   email?: string | null;
   name?: string | null;
   inviteToken?: string | null;
@@ -52,7 +55,7 @@ const inputCls = 'w-full border px-4 py-3 font-mono text-[13px] rounded-xl outli
 // passport) and the host's required questions — then submits. Optional
 // profile extras (craft tags, socials, bio) are deferred to the
 // complete-your-profile prompt on /home so RSVP stays fast.
-export default function RsvpModal({ eventId, slug, eventName, privyId, email, name, inviteToken, approvalRequired, ticketLink, onClose, onRegistered, onDone }: Props) {
+export default function RsvpModal({ eventId, slug, eventName, privyId, guest = false, email, name, inviteToken, approvalRequired, ticketLink, onClose, onRegistered, onDone }: Props) {
   const [questions, setQuestions] = useState<Question[] | null>(null);
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -174,7 +177,7 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
   // verified in-place via Privy, like the profile "connect" rows. A verified
   // phone rides along silently on submit — there's no phone field here, the
   // form stays lean.
-  const { user, linkEmail, getAccessToken } = usePrivy();
+  const { user, linkEmail, getAccessToken, login } = usePrivy();
   const linked = user?.linkedAccounts ?? [];
   const emailAcct = linked.find((a) => a.type === 'email') as { address: string } | undefined;
   const googleAcct = linked.find((a) => a.type === 'google_oauth') as { email?: string } | undefined;
@@ -203,6 +206,7 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
 
   // Prefill name / email / phone from the signed-in user's profile.
   useEffect(() => {
+    if (guest) { setProfileLoaded(true); return; }
     fetch(`/api/auth/profile?privyId=${encodeURIComponent(privyId)}`)
       .then((r) => r.json())
       .then((d) => {
@@ -311,12 +315,17 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
 
   const submit = async () => {
     if (!contactName.trim()) { setError('Please add your name'); return; }
-    if (!verifiedEmail) { setError('Please verify your email to register'); return; }
-    if (!username.trim()) { setError('Pick a handle to claim your Topia profile'); return; }
-    if (effectiveAvailability === 'invalid') { setError('Handle must be 3–30 chars: lowercase letters, numbers, underscores'); return; }
-    if (effectiveAvailability === 'taken') { setError('That handle is taken — try another'); return; }
-    if (effectiveAvailability === 'checking') { setError('Hang on — still checking that handle'); return; }
-    if (!photoChoice) { setError('Add a profile photo, or choose the generated avatar'); return; }
+    if (guest && contactName.trim().split(/\s+/).length < 2) { setError('Please add your full name — first and last'); return; }
+    if (guest) {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contactEmail.trim())) { setError('Please enter a valid email address'); return; }
+    } else {
+      if (!verifiedEmail) { setError('Please verify your email to register'); return; }
+      if (!username.trim()) { setError('Pick a handle to claim your Topia profile'); return; }
+      if (effectiveAvailability === 'invalid') { setError('Handle must be 3–30 chars: lowercase letters, numbers, underscores'); return; }
+      if (effectiveAvailability === 'taken') { setError('That handle is taken — try another'); return; }
+      if (effectiveAvailability === 'checking') { setError('Hang on — still checking that handle'); return; }
+      if (!photoChoice) { setError('Add a profile photo, or choose the generated avatar'); return; }
+    }
     for (const q of questions ?? []) {
       if (q.required && !answered(q)) { setError(`Please answer: ${q.label}`); return; }
     }
@@ -329,11 +338,13 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
     try {
       // Send the Privy access token so the server can independently confirm the
       // email is verified (the body alone is not trusted).
-      const accessToken = await getAccessToken().catch(() => null);
+      const accessToken = guest ? null : await getAccessToken().catch(() => null);
       const res = await fetch('/api/events/rsvp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyId, eventId, answers, email: verifiedEmail, name: contactName.trim(), phone, username: username.trim(), avatarUrl: avatarUrl || undefined, inviteToken, accessToken }),
+        body: JSON.stringify(guest
+          ? { eventId, answers, email: contactEmail.trim(), name: contactName.trim(), inviteToken }
+          : { privyId, eventId, answers, email: verifiedEmail, name: contactName.trim(), phone, username: username.trim(), avatarUrl: avatarUrl || undefined, inviteToken, accessToken }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to register');
@@ -472,7 +483,7 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
                   onChange={(e) => setContactName(e.target.value)}
                   readOnly={existingName} disabled={existingName}
                   className={`${inputCls}${existingName ? ' cursor-not-allowed opacity-80' : ''}`}
-                  style={fieldStyle} placeholder="Your name"
+                  style={fieldStyle} placeholder={guest ? 'Your full name' : 'Your name'}
                 />
               </div>
               <div>
@@ -480,7 +491,13 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
                   Email<span style={{ color: '#FF5C34' }}> *</span>
                   {verifiedEmail && <span className="inline-flex items-center gap-1 normal-case tracking-normal" style={{ color: '#00b36b', opacity: 1 }}>· verified ✓</span>}
                 </label>
-                {verifiedEmail ? (
+                {guest ? (
+                  <input
+                    type="email" value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    className={inputCls} style={fieldStyle} placeholder="you@example.com"
+                  />
+                ) : verifiedEmail ? (
                   <input type="email" value={contactEmail} readOnly disabled className={`${inputCls} cursor-not-allowed opacity-80`} style={fieldStyle} />
                 ) : (
                   <>
@@ -540,7 +557,7 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
                     Edit
                   </button>
                 </div>
-              ) : (
+              ) : guest ? null : (
               <>
               {/* Photo + handle, the passport identity, up top */}
               <div>
@@ -724,6 +741,21 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
                   <div className="flex justify-center mb-4">
                     <InkStamp lines={['ENTRY', 'GRANTED', new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()]} />
                   </div>
+                  {guest && (
+                    <div className="mb-4 rounded-xl border p-4 text-left" style={{ borderColor: 'var(--border-color)' }}>
+                      <p className="font-mono text-[10px] uppercase tracking-[0.15em] opacity-40 mb-1.5" style={{ color: 'var(--foreground)' }}>Save this RSVP</p>
+                      <p className="font-mono text-[12px] leading-snug opacity-70 mb-3.5" style={{ color: 'var(--foreground)' }}>
+                        Create your Topia account with <span className="font-bold">{contactEmail.trim()}</span> and this RSVP is already yours — plus your passport starts collecting stamps at the door.
+                      </p>
+                      <button
+                        onClick={() => login()}
+                        className="w-full px-4 py-3 font-mono text-[13px] uppercase tracking-widest rounded-lg cursor-pointer text-center font-bold border-none transition hover:opacity-90"
+                        style={{ backgroundColor: 'var(--lime)', color: 'var(--obsidian)' }}
+                      >
+                        Claim your account →
+                      </button>
+                    </div>
+                  )}
                   <h3 className="font-basement text-[26px] font-black uppercase leading-none mb-1.5" style={{ color: 'var(--foreground)' }}>You&apos;re going!</h3>
                   <p className="font-mono text-[12px] opacity-50 mb-5" style={{ color: 'var(--foreground)' }}>You&apos;re on the list for {eventName}.</p>
 

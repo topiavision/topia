@@ -351,15 +351,12 @@ export default function EventDetailClient({ slug }: { slug: string }) {
     URL.revokeObjectURL(url);
   };
 
-  // RSVP entry point. Visitors verify with Privy first (we stash intent so we
-  // can resume after login), then the registration modal collects answers.
+  // RSVP entry point. No login required (the owner's call): visitors go
+  // straight to the registration form as guests — full name + email identify
+  // them, and the success step offers the account claim. Logged-in users get
+  // the full passport flow as before.
   const handleRsvp = async () => {
     if (!event) return;
-    if (!privyUser?.id) {
-      try { sessionStorage.setItem(PENDING_KEY, slug); } catch {}
-      login();
-      return;
-    }
     if (event.userRsvped) {
       // Withdrawing gives up your spot — never do it on a single tap. Ask first.
       setConfirmWithdraw(true);
@@ -1025,12 +1022,13 @@ export default function EventDetailClient({ slug }: { slug: string }) {
       </div>
 
       {/* Registration modal — custom questions + confirm */}
-      {rsvpFormOpen && event && privyUser?.id && (
+      {rsvpFormOpen && event && (
         <RsvpModal
           eventId={event.id}
           slug={event.slug}
           eventName={event.eventName}
-          privyId={privyUser.id}
+          privyId={privyUser?.id ?? ''}
+          guest={!privyUser?.id}
           email={privyEmail}
           inviteToken={inviteToken}
           approvalRequired={!!event.rsvpApprovalRequired}

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyPrivyIdentity } from '@/lib/auth/privyServer';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { ensureShortLink } from '@/lib/shortlinkStore';
 
 // Normalize a profile string field: trim whitespace, convert empty to null.
@@ -138,6 +138,33 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({ user: updated[0] });
+    }
+
+    // First-time PRIVY user — but they may already exist as a GUEST (an
+    // email-only row from a no-login RSVP or ticket purchase). Privy has
+    // verified this email at login, so adopting the guest row is safe — and
+    // it is exactly the claim step: their RSVPs, tickets and stamps are
+    // already attached to that row.
+    if (email) {
+      const [ghost] = await db
+        .select({ id: users.id, privyId: users.privyId })
+        .from(users)
+        .where(sql`lower(${users.email}) = ${email.toLowerCase()}`);
+      if (ghost && !ghost.privyId) {
+        const adopted = await db
+          .update(users)
+          .set({
+            privyId,
+            // Fill-blanks-only for identity fields the wizard sends.
+            ...(name !== undefined && name !== null ? { name: sql`coalesce(${users.name}, ${name})` } : {}),
+            ...(username !== undefined && username !== null ? { username: sql`coalesce(${users.username}, ${username})` } : {}),
+            ...(avatarUrl !== undefined && avatarUrl !== null ? { avatarUrl: sql`coalesce(${users.avatarUrl}, ${avatarUrl})` } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, ghost.id))
+          .returning();
+        return NextResponse.json({ user: adopted[0], claimed: true });
+      }
     }
 
     // First-time user — insert
