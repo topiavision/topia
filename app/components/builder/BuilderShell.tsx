@@ -122,18 +122,14 @@ export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas, 
         </div>
         <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
       </div>
-      {/* Desktop: centered two-pane card — chat left, canvas right. */}
-      <div className="hidden sm:flex fixed inset-0 z-[2301] items-center justify-center p-6 pointer-events-none">
-        <div
-          className="takeover-card pointer-events-auto w-full max-w-5xl h-[min(720px,88lvh)] grid grid-cols-[minmax(320px,1fr)_1.2fr] bg-[var(--page-bg)] border border-ink/10 rounded-2xl overflow-hidden"
-          style={{ boxShadow: `0 24px 80px rgba(0,0,0,0.5), 0 0 48px color-mix(in srgb, var(--orange) 10%, transparent)` }}
-        >
-          <div className="flex flex-col min-h-0 border-r border-ink/10">
-            {header}
-            <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
-          </div>
-          <div className="overflow-y-auto min-h-0">{canvas}</div>
+      {/* Desktop: the SAME full-screen takeover, two-pane — every assistant
+        * presents one way now, per the founder: full screen, × to exit. */}
+      <div className="hidden sm:grid fixed inset-0 z-[2301] grid-cols-[minmax(340px,1fr)_1.3fr] bg-[var(--page-bg)] takeover-card" style={{ height: '100dvh' }}>
+        <div className="flex flex-col min-h-0 border-r border-ink/10">
+          {header}
+          <div className="flex-1 min-h-0 flex flex-col">{chat}</div>
         </div>
+        <div className="overflow-y-auto min-h-0">{canvas}</div>
       </div>
     </>
   );

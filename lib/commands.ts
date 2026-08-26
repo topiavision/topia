@@ -35,7 +35,11 @@ export function buildCommands(opts: {
   if (authenticated) {
     cmds.push(
       // These land on bot-first pages — the ✦ assistant takes it from there.
-      { id: 'ask-assistant', label: 'Ask the assistant', group: 'Actions', glyph: '✦', keywords: 'ai bot help agent find discover make anything', href: '/assistant' },
+      {
+        id: 'ask-assistant', label: 'Ask the assistant', group: 'Actions', glyph: '✦',
+        keywords: 'ai bot help agent find discover make anything',
+        run: () => window.dispatchEvent(new CustomEvent('topia:open-assistant')),
+      },
       { id: 'create-world', label: 'Create a world', group: 'Actions', glyph: '+', keywords: 'new start build', href: '/dashboard/create-world' },
       { id: 'create-event', label: 'Create an event', group: 'Actions', glyph: '+', keywords: 'new host party show gig', href: '/events/create' },
       { id: 'create-project', label: 'Add a project', group: 'Actions', glyph: '+', keywords: 'new work portfolio roadmap milestone', href: '/dashboard/worlds' },
