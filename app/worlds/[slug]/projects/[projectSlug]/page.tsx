@@ -13,6 +13,7 @@ import ProjectThumb from '../../../../components/ProjectThumb';
 import { getEmbedUrl, markdownComponents } from '../../../../components/ProjectContent';
 import { getWorldConfig } from '../../../../components/world/worldConfig';
 import InProcessLayer, { type EraView } from '../../../../components/world/InProcessLayer';
+import { LoadFailed } from '../../../../components/AsyncStates';
 import { faviconUrl } from '../../../../resources/tools/favicon';
 
 /* ── Types ────────────────────────────────────────────────────── */
@@ -74,37 +75,55 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
   const [projectEras, setProjectEras] = useState<EraView[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // Not-found vs load-failed: a 404 means the file genuinely isn't there;
+  // anything else (network, 500) gets an honest error + retry instead.
+  const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setNotFound(false);
+    setLoadError(false);
 
     fetch(`/api/worlds?slug=${slug}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`world fetch failed (${r.status})`);
+        return r.json();
+      })
       .then((data) => {
         if (cancelled) return;
-        if (!data.worlds?.length) { setError(true); setLoading(false); return; }
+        if (!data.worlds?.length) { setNotFound(true); setLoading(false); return; }
         const w = data.worlds[0];
         setWorld({ id: w.id, title: w.title, slug: w.slug, imageUrl: w.imageUrl ?? null, members: w.members ?? [] });
 
         return Promise.all([
           fetch(`/api/worlds/projects?worldId=${w.id}&slug=${projectSlug}`)
-            .then((r) => r.json())
+            .then((r) => {
+              if (!r.ok) throw new Error(`project fetch failed (${r.status})`);
+              return r.json();
+            })
             .then((d) => {
               if (cancelled) return;
               if (d.project) setProject(d.project);
-              else setError(true);
+              else setNotFound(true);
             }),
+          // Siblings are decorative (orbit index) — their failure must not
+          // take down a project that loaded fine.
           fetch(`/api/worlds/projects?worldId=${w.id}`)
             .then((r) => r.json())
-            .then((d) => { if (!cancelled) setSiblings(d.projects || []); }),
+            .then((d) => { if (!cancelled) setSiblings(d.projects || []); })
+            .catch(() => {}),
         ]);
       })
-      .catch(() => { if (!cancelled) setError(true); })
+      .catch((err) => {
+        console.error('[project] load failed', err);
+        if (!cancelled) setLoadError(true);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [slug, projectSlug]);
+  }, [slug, projectSlug, loadAttempt]);
 
   useEffect(() => {
     fetch('/api/tools').then((r) => r.json()).then((d) => setRegistryTools(d.tools || [])).catch(() => {});
@@ -180,7 +199,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
     );
   }
 
-  if (error || !world || !project) {
+  if (loadError && (!world || !project)) {
+    return (
+      <PageShell>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--page-bg)]">
+          <LoadFailed
+            what="this project"
+            onRetry={() => { setLoading(true); setLoadAttempt((n) => n + 1); }}
+          />
+          <Link href={`/worlds/${slug}`} className="font-mono text-[12px] underline text-ink">← Back to world</Link>
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (notFound || !world || !project) {
     return (
       <PageShell>
         <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[var(--page-bg)]">

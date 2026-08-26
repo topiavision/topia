@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import { useDashboard } from '../_components/DashboardContext';
 import { useToast } from '../../components/Toast';
+import { LoadFailed } from '../../components/AsyncStates';
 
 export default function DashboardEventsPage() {
-  const { hostedEvents, refreshEvents } = useDashboard();
+  const { hostedEvents, eventsStatus, refreshEvents } = useDashboard();
   const { user } = usePrivy();
   const toast = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -54,15 +55,32 @@ export default function DashboardEventsPage() {
         </div>
         <div className="bg-[var(--page-bg)] px-5 py-2.5 flex items-center gap-5">
           <span className="font-mono text-[11px] text-ink/50">
-            <span className="text-ink font-bold">{live.length}</span> live
+            <span className="text-ink font-bold">{eventsStatus === 'loaded' ? live.length : '–'}</span> live
           </span>
           <span className="font-mono text-[11px] text-ink/50">
-            <span className="text-ink font-bold">{drafts.length}</span> draft{drafts.length === 1 ? '' : 's'}
+            <span className="text-ink font-bold">{eventsStatus === 'loaded' ? drafts.length : '–'}</span> draft{eventsStatus === 'loaded' && drafts.length === 1 ? '' : 's'}
           </span>
         </div>
       </div>
 
-      {hostedEvents.length === 0 ? (
+      {eventsStatus === 'loading' ? (
+        /* Not loaded yet — never the confident "No events yet." */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" aria-busy="true">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="border border-ink/[0.08] rounded-lg overflow-hidden bg-[var(--page-bg)]">
+              <div className="aspect-video bg-ink/[0.04] animate-pulse" />
+              <div className="p-4 space-y-2">
+                <div className="h-3 w-2/3 bg-ink/[0.06] rounded animate-pulse" />
+                <div className="h-2.5 w-1/3 bg-ink/[0.06] rounded animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : eventsStatus === 'error' ? (
+        <div className="border border-ink/[0.08] rounded-lg bg-[var(--page-bg)]">
+          <LoadFailed what="your events" onRetry={refreshEvents} />
+        </div>
+      ) : hostedEvents.length === 0 ? (
         <div className="border border-ink/[0.08] rounded-lg bg-[var(--page-bg)] p-10 text-center">
           <p className="font-basement font-black text-[22px] uppercase text-ink leading-tight">No events yet.</p>
           <p className="font-mono text-[12px] text-ink/50 mt-2">Host something — a show, a screening, a meetup.</p>
@@ -115,6 +133,13 @@ export default function DashboardEventsPage() {
                     className="font-mono text-[10px] uppercase tracking-[1px] text-ink/60 border border-ink/15 hover:border-ink/40 hover:text-ink px-2.5 py-1 rounded-sm transition no-underline"
                   >
                     Edit
+                  </Link>
+                  <Link
+                    href={`/events/${ev.slug}/manage`}
+                    className="font-mono text-[10px] uppercase tracking-[1px] text-ink/60 border border-ink/15 hover:border-ink/40 hover:text-ink px-2.5 py-1 rounded-sm transition no-underline"
+                    title="Guest list, check-in, hosts & registration settings"
+                  >
+                    Manage
                   </Link>
                   {ev.published ? (
                     <button

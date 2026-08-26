@@ -130,6 +130,9 @@ export default function EventsPageClient({
   const [search, setSearch] = useState('');
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  // Background refetch failed — the list on screen is the last one that
+  // loaded. Surfaced as a dismissible notice instead of failing silently.
+  const [refreshError, setRefreshError] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -152,11 +155,14 @@ export default function EventsPageClient({
       if (user?.id) params.set('privyId', user.id);
       if (selectedCity) params.set('city', selectedCity);
       const res = await fetch(`/api/events/overview?${params}`);
+      if (!res.ok) throw new Error(`events overview fetch failed (${res.status})`);
       const data = await res.json();
       setEvents(data.events ?? []);
       setCities(data.cities ?? []);
+      setRefreshError(false);
     } catch (err) {
       console.error('events overview load failed', err);
+      setRefreshError(true);
     } finally {
       setLoading(false);
     }
@@ -398,6 +404,29 @@ export default function EventsPageClient({
                   );
                 })}
               </div>
+
+              {/* Refresh-failure notice — stale-but-honest: the list below is
+                  the last one that loaded, and the viewer can retry or dismiss. */}
+              {refreshError && !loading && (
+                <div className="bg-[var(--background)] border-b border-[var(--border-color)] px-4 py-2 flex items-center gap-3">
+                  <span className="font-mono text-[11px] uppercase tracking-[2px] text-[var(--text-muted)] min-w-0">
+                    couldn&rsquo;t refresh — showing the last loaded list
+                  </span>
+                  <button
+                    onClick={() => reload()}
+                    className="font-mono text-[11px] uppercase tracking-[2px] text-[var(--accent-ink)] hover:opacity-70 bg-transparent border-none cursor-pointer shrink-0"
+                  >
+                    retry
+                  </button>
+                  <button
+                    onClick={() => setRefreshError(false)}
+                    className="ml-auto font-mono text-[14px] text-[var(--text-muted)] hover:text-[var(--foreground)] bg-transparent border-none cursor-pointer w-5 h-5 flex items-center justify-center shrink-0"
+                    aria-label="Dismiss"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
 
               {/* ─── ROW 4: Grouped list OR grid ─── */}
               <div className="bg-[var(--background)] min-h-[400px]">
@@ -939,7 +968,10 @@ function EventGridCard({ event, authenticated, onOpen, onToggleRsvp, onToggleSav
               <span className="font-mono text-[9px] uppercase tracking-[2px] text-[var(--text-muted)]">{attendanceLine(event)}</span>
             )}
           </div>
-          {(authenticated || (event.externalSource && event.link)) && (
+          {/* The "View" affordance always renders — logged-out visitors get
+              the same visible way into internal events as everyone else.
+              Only the save star is auth-gated. */}
+          {(!isPast || authenticated) && (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
               {!isPast && event.externalSource && event.link ? (
                 <a
