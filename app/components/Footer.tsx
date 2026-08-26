@@ -23,7 +23,6 @@ export default function Footer() {
   const passportHref = profile?.username ? `/profile/${profile.username}` : '/profile';
 
   // Hide footer on certain pages
-  if (pathname === '/waitlist') return null;
   if (pathname.startsWith('/dashboard')) return null;
 
   return (
