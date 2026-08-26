@@ -311,7 +311,7 @@ export default function RsvpModal({ eventId, slug, eventName, privyId, email, na
   const submit = async () => {
     if (!contactName.trim()) { setError('Please add your name'); return; }
     if (!verifiedEmail) { setError('Please verify your email to register'); return; }
-    if (!username.trim()) { setError('Pick a handle to claim your TOPIA passport'); return; }
+    if (!username.trim()) { setError('Pick a handle to claim your Topia profile'); return; }
     if (effectiveAvailability === 'invalid') { setError('Handle must be 3–30 chars: lowercase letters, numbers, underscores'); return; }
     if (effectiveAvailability === 'taken') { setError('That handle is taken — try another'); return; }
     if (effectiveAvailability === 'checking') { setError('Hang on — still checking that handle'); return; }

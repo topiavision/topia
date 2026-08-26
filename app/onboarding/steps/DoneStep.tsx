@@ -114,7 +114,7 @@ export default function DoneStep({ config, name, username, avatarUrl, roleTags, 
                     href="/profile?assistant=1"
                     className="font-mono text-[11px] uppercase tracking-[2px] bg-lime text-obsidian font-bold px-3 py-1.5 rounded-sm no-underline hover:opacity-90 transition"
                   >
-                    ✦ Finish your passport
+                    ✦ Finish your profile
                   </Link>
                   <Link
                     href={`/profile/${username}`}

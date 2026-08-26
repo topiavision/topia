@@ -91,7 +91,7 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
               <p className="font-mono text-[10px] font-bold uppercase tracking-[2px]" style={{ color: ORANGE }}>● In motion</p>
             )}
             {era.status === 'complete' && (
-              <p className="font-mono text-[10px] font-bold uppercase tracking-[2px] text-ink/40">✓ Past era</p>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[2px] text-ink/40">✓ Past roadmap</p>
             )}
             {era.status === 'archived' && (
               <p className="font-mono text-[10px] font-bold uppercase tracking-[2px]" style={{ color: ORANGE }}>Archived — only builders see this</p>

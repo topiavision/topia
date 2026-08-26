@@ -124,7 +124,7 @@ export function EraForm({ worldId, projects, existing, privyId, onClose, onChang
           <label className={labelCls}>Status</label>
           <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })} className={`${inputCls} appearance-none cursor-pointer`}>
             <option value="active">Active — shown on the world page</option>
-            <option value="complete">Complete — shown as a past era</option>
+            <option value="complete">Complete — shown as a past roadmap</option>
             <option value="archived">Archived — hidden from visitors</option>
           </select>
         </div>

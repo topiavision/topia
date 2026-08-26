@@ -333,7 +333,7 @@ export default function ProfilePage() {
             onOpen={() => setAssistantOpen(true)}
           />
         </div>
-        <FloatingAssistant onOpen={() => setAssistantOpen(true)} hidden={assistantOpen} label="Edit your passport" />
+        <FloatingAssistant onOpen={() => setAssistantOpen(true)} hidden={assistantOpen} label="Edit your profile" />
         {assistantOpen && (
           <ProfileAssistant
             initial={assistantState}
