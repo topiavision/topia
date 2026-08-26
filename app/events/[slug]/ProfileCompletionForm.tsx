@@ -165,7 +165,7 @@ export default function ProfileCompletionForm({ privyId, profile, onComplete, on
               )}
             </div>
             <p className="mt-1.5 font-mono text-[10px] opacity-40" style={{ color: fg }}>
-              This is your public profile URL — topia.so/@{handle || 'yourhandle'}
+              This is your public profile URL — topia.vision/@{handle || 'yourhandle'}
             </p>
           </div>
         )}

@@ -75,7 +75,7 @@ export default function HandleChangeModal({ open, currentHandle, privyId, onClos
 
         <div className="p-5 space-y-4">
           <p className="font-mono text-[12px] text-ink/60 leading-relaxed">
-            Your handle is your public URL: <span className="text-ink">topia.so/profile/@{currentHandle || '…'}</span>.
+            Your handle is your public URL: <span className="text-ink">topia.vision/profile/{currentHandle || '…'}</span>.
             Changing it will <span className="text-pink">break any existing links to your profile</span> — old links won&apos;t redirect to the new handle.
           </p>
 
