@@ -24,7 +24,6 @@ const NAV_LINKS: NavItem[] = [
     ],
   },
   { href: '/assistant', label: '✦ Assistant' },
-  { href: '#', label: 'Catalysts', comingSoon: true },
   { href: '/dashboard', label: 'Dashboard' },
 ];
 

@@ -68,7 +68,7 @@ const SECTIONS = [
   { id: 'projects',   label: 'PROJECTS' },
   { id: 'overview',   label: 'OVERVIEW' },
   { id: 'inprocess',  label: 'IN PROCESS' },
-  { id: 'architects', label: 'ARCHITECTS' },
+  { id: 'architects', label: 'BUILDERS' },
   { id: 'events',     label: 'EVENTS' },
   { id: 'tools',      label: 'TOOLS' },
 ] as const;

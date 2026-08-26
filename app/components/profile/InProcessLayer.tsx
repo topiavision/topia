@@ -125,6 +125,7 @@ export default function InProcessLayer({
       <div className="flex items-baseline justify-between gap-3 mb-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[2px] text-ink/40">Life // In Process</p>
+          <p className="font-mono text-[10px] text-ink/35 mt-1">Build-in-public, but for a life: chapters this creator sets, plus the roadmaps of every world they build.</p>
           <p className="font-mono text-[11px] text-ink/50 mt-0.5">
             {worldEras.length > 0 && `${worldEras.length} world era${worldEras.length === 1 ? '' : 's'}`}
             {worldEras.length > 0 && chapters.length > 0 && ' · '}
