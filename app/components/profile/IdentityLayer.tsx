@@ -419,9 +419,13 @@ export default function IdentityLayer({ config, sectionLabel, items, stamps, sho
             ))}
           </div>
         )}
+        <p className="font-mono text-[10px] text-ink/35 mb-3 relative z-10">
+          Stamps land as this creator shows up — events, connects, worlds. Tap any stamp for its story.
+        </p>
         {stamps.length === 0 ? (
-          <div className="flex items-center justify-center relative z-10" style={{ minHeight: 180 }}>
-            <span className="font-mono text-[11px] text-ink/20 uppercase tracking-wider">No travel yet</span>
+          <div className="flex flex-col items-center justify-center gap-2 relative z-10" style={{ minHeight: 180 }}>
+            <span className="font-mono text-[11px] text-ink/30 uppercase tracking-wider">No stamps yet</span>
+            <a href="/events" className="font-mono text-[10px] uppercase tracking-[1px] no-underline" style={{ color: 'var(--accent-ink)' }}>they start at events →</a>
           </div>
         ) : visible.length === 0 ? (
           <div className="flex items-center justify-center relative z-10" style={{ height: BAND_H }}>

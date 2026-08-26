@@ -23,7 +23,7 @@ import GuestbookLayer from '../../components/profile/GuestbookLayer';
 import ProfileInProcessLayer, { type LifeChapterView, type WorldEraEntry } from '../../components/profile/InProcessLayer';
 import { SupportSummary } from '../../components/profile/SupportSummary';
 import ToolkitLayer from '../../components/profile/ToolkitLayer';
-import Tour, { type TourStep } from '../../components/Tour';
+import Tour, { replayTour, type TourStep } from '../../components/Tour';
 
 // First-visit walkthrough of your own profile — once per account.
 const PROFILE_TOUR: TourStep[] = [
@@ -507,6 +507,16 @@ export default function PublicProfilePage() {
                             <Link id="tour-prof-edit" href="/profile" className="font-mono text-[10px] uppercase tracking-wider text-ink/50 hover:text-ink/60 transition-colors border border-ink/[0.08] rounded-sm px-2 py-0.5 no-underline">
                               Edit
                             </Link>
+                          )}
+                          {isOwnProfile && (
+                            <button
+                              onClick={() => replayTour('profile')}
+                              title="Replay the tour"
+                              aria-label="Replay the tour"
+                              className="inline-flex items-center font-mono text-[10px] uppercase tracking-wider text-ink/50 hover:text-ink/60 transition-colors border border-ink/[0.08] rounded-sm px-2 py-0.5 cursor-pointer bg-transparent"
+                            >
+                              ?
+                            </button>
                           )}
                           {!isOwnProfile && profile.id && (
                             <MessageButton

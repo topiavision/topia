@@ -101,6 +101,9 @@ export default function Tour({ tourKey, privyId, enabled, steps }: {
   }, [privyId, tourKey]);
 
   const close = useCallback(() => { setActive(null); markSeen(); }, [markSeen]);
+  // Backdrop clicks are usually accidental — dismiss without burning the
+  // once-per-account flag, so the tour offers itself again next visit.
+  const softClose = useCallback(() => { setActive(null); }, []);
 
   // Track the spotlight target through scroll/resize while a step is up.
   const step = active?.[idx] ?? null;
@@ -157,10 +160,10 @@ export default function Tour({ tourKey, privyId, enabled, steps }: {
     <div className="fixed inset-0 z-[3000]" role="dialog" aria-label="Welcome tour">
       {/* veil / spotlight cutout */}
       {centered ? (
-        <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.66)' }} onClick={close} />
+        <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.66)' }} onClick={softClose} />
       ) : (
         <>
-          <div className="absolute inset-0" onClick={close} />
+          <div className="absolute inset-0" onClick={softClose} />
           <div
             className="absolute rounded-lg pointer-events-none transition-all duration-300"
             style={{
