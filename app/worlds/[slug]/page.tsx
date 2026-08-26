@@ -132,7 +132,11 @@ function WatchersModal({ worldId, worldTitle, config, viewerPrivyId, onClose }: 
           {watchers === null ? (
             <span className="font-mono text-[11px] uppercase tracking-wider text-ink/30 block py-4 text-center">Loading…</span>
           ) : watchers.length === 0 ? (
-            <span className="font-mono text-[11px] uppercase tracking-wider text-ink/30 block py-4 text-center">No one watching yet</span>
+            <span className="block py-4 text-center">
+              <span className="font-mono text-[11px] uppercase tracking-wider text-ink/30 block">No one watching yet.</span>
+              {/* An empty list means the viewer isn't watching either — point at the way in. */}
+              <span className="font-mono text-[10px] text-ink/40 block mt-1.5 normal-case tracking-normal">The Watch button up top is the way in.</span>
+            </span>
           ) : (
             watchers.map((w) => {
               const identity = (
