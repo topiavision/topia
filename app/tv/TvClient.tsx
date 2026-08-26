@@ -47,7 +47,6 @@ function episodeNo(i: number): string {
 // Initial episodes come server-rendered from page.tsx so the player (the LCP
 // element) is in the initial HTML; the client fetch only runs as a fallback.
 export default function TvClient({ initialEpisodes }: { initialEpisodes: Episode[] }) {
-  const [tvMode, setTvMode] = useState<'collective' | 'my-channel'>('collective');
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeEp, setActiveEp] = useState<Episode | null>(initialEpisodes[0] ?? null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -175,7 +174,6 @@ export default function TvClient({ initialEpisodes }: { initialEpisodes: Episode
 
   /* ── Derived ─────────────────────────────────────────── */
   const c = activeEp ? CAT_COLOR[activeEp.category] || CAT_COLOR.Featured : null;
-  const userHandle = '@you';
   const progressPct = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
   const displayDuration = duration > 0
     ? formatTime(duration)
@@ -193,20 +191,15 @@ export default function TvClient({ initialEpisodes }: { initialEpisodes: Episode
               <h1 className="font-basement font-black text-[clamp(24px,3vw,36px)] leading-[0.85] uppercase mt-1" style={{ color: 'var(--accent-text, #1a1a1a)' }}>TOPIA TV.</h1>
             </div>
             <div className="bg-[var(--page-bg)] px-4 py-3 flex flex-col justify-center">
+              {/* One channel for now — the collective feed. Per-user channels
+                  can bring a mode toggle back when they actually exist. */}
               <div className="flex items-center gap-2 mb-1">
-                <button onClick={() => setTvMode('collective')}
-                  className={`font-mono text-[13px] uppercase tracking-wider px-2 py-0.5 transition-all bg-transparent border-none cursor-pointer ${tvMode === 'collective' ? 'text-ink bg-ink/15' : 'text-ink/30 hover:text-ink/50'}`}>
+                <span className="font-mono text-[13px] uppercase tracking-wider px-2 py-0.5 text-ink bg-ink/15">
                   Collective
-                </button>
-                <button onClick={() => setTvMode('my-channel')}
-                  className={`font-mono text-[13px] uppercase tracking-wider px-2 py-0.5 transition-all bg-transparent border-none cursor-pointer ${tvMode === 'my-channel' ? 'text-ink bg-ink/15' : 'text-ink/30 hover:text-ink/50'}`}>
-                  My Channel
-                </button>
+                </span>
               </div>
               <span className="font-mono text-[12px] text-ink/40 tracking-wider">
-                {tvMode === 'my-channel' ? (
-                  <span className="text-ink/20">{userHandle}&apos;s channel</span>
-                ) : activeEp ? (
+                {activeEp ? (
                   <><span className="text-ink/20">now playing:</span> <span className={`font-bold ${c?.text}`}>{activeEp.title}</span></>
                 ) : <span className="text-ink/20">select a program</span>}
               </span>

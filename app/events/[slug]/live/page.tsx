@@ -840,15 +840,26 @@ export default function EventLivePage({ params }: { params: Promise<{ slug: stri
                   <div className="mt-2 flex flex-col gap-0.5">
                     {people.slice(0, 12).map((p) => (
                       <div key={p.id} className="flex items-center gap-3 py-2" style={{ borderBottom: `1px solid ${LINE}` }}>
-                        <Link href={p.username ? `/profile/${p.username}` : '#'} className="flex items-center gap-3 flex-1 min-w-0 no-underline">
-                          {p.avatarUrl
-                            ? <img src={p.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
-                            : <div className="w-8 h-8 rounded-full flex items-center justify-center font-mono text-[11px] font-bold" style={{ backgroundColor: '#333', color: INK }}>{(p.name || p.username || '?')[0].toUpperCase()}</div>}
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-[13px] font-bold truncate" style={{ color: INK }}>{p.name || p.username}</span>
-                            {p.username && <span className="block font-mono text-[10px]" style={{ color: DIM }}>@{p.username}</span>}
-                          </span>
-                        </Link>
+                        {(() => {
+                          const inner = (
+                            <>
+                              {p.avatarUrl
+                                ? <img src={p.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                                : <div className="w-8 h-8 rounded-full flex items-center justify-center font-mono text-[11px] font-bold" style={{ backgroundColor: '#333', color: INK }}>{(p.name || p.username || '?')[0].toUpperCase()}</div>}
+                              <span className="flex-1 min-w-0">
+                                <span className="block text-[13px] font-bold truncate" style={{ color: INK }}>{p.name || p.username}</span>
+                                {p.username && <span className="block font-mono text-[10px]" style={{ color: DIM }}>@{p.username}</span>}
+                              </span>
+                            </>
+                          );
+                          // No username → no profile page; render a plain row
+                          // instead of a link to nowhere.
+                          return p.username ? (
+                            <Link href={`/profile/${p.username}`} className="flex items-center gap-3 flex-1 min-w-0 no-underline">{inner}</Link>
+                          ) : (
+                            <span className="flex items-center gap-3 flex-1 min-w-0">{inner}</span>
+                          );
+                        })()}
                         <button
                           onClick={() => messagePerson(p.id)}
                           disabled={dmBusyId === p.id}

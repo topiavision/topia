@@ -18,7 +18,6 @@ const STATIC_PATHS = [
   '/tv',
   '/about',
   '/contact',
-  '/waitlist',
   '/legal/privacy',
   '/legal/terms',
   '/legal/cookies',
