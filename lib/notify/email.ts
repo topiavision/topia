@@ -240,9 +240,31 @@ export function sendRsvpConfirmation(opts: {
 // Ticket purchase confirmation — fired once per order when it flips to paid
 // (card via Stripe, or a free/fully-discounted claim). totalCents is what was
 // actually charged after any promo discount.
+// The claim card injected into guest ticket confirmations ({{{CLAIM_BLOCK}}}
+// in the template — members get an empty string). Mirrors the generator's
+// secondaryNudge; keep the two in step (scripts/gen-email-templates.mjs).
+function claimBlockHtml(profileUrl: string): string {
+  return `
+          <tr>
+            <td style="padding:24px 32px 0 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(136,136,136,0.25);border-radius:12px;">
+                <tr>
+                  <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;">
+                    <div style="padding-bottom:8px;font-weight:bold;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:inherit;">Confirm your account</div>
+                    <div style="font-size:14px;line-height:1.5;color:#888888;padding-bottom:14px;">Your ticket is tied to this email. Claim your Topia profile with it — the ticket, your pass at the door, and your first stamps are already yours.</div>
+                    <a href="${profileUrl}" target="_blank" style="display:inline-block;padding:11px 22px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:inherit;text-decoration:none;border:1px solid rgba(136,136,136,0.45);border-radius:8px;">Claim your profile &rarr;</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>`;
+}
+
 export function sendTicketConfirmation(opts: {
   to: string; eventName: string; origin: string; slug: string;
   ticketCount: number; totalCents: number; guestName?: string | null;
+  /** Buyer has no Privy account yet — the email carries the claim card. */
+  guest?: boolean;
 }) {
   return sendTemplateEmail({
     to: opts.to,
@@ -253,6 +275,7 @@ export function sendTicketConfirmation(opts: {
       GUEST_NAME: opts.guestName || 'there',
       TICKET_COUNT_LABEL: `${opts.ticketCount} ticket${opts.ticketCount === 1 ? '' : 's'}`,
       ORDER_TOTAL: opts.totalCents === 0 ? 'Free' : `$${(opts.totalCents / 100).toFixed(2)}`,
+      CLAIM_BLOCK: opts.guest ? claimBlockHtml(`${opts.origin}/onboarding`) : '',
     },
   });
 }

@@ -49,9 +49,9 @@ function secondaryNudge() {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(136,136,136,0.25);border-radius:12px;">
                 <tr>
                   <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;">
-                    <div style="padding-bottom:8px;">${hl('Finish setup')}</div>
-                    <div style="font-size:14px;line-height:1.5;color:#888888;padding-bottom:14px;">You're in. Claim your TOPIA passport — just pick a username and add a profile photo. It's how you show up across the network, and you can change it anytime.</div>
-                    <a href="{{{PROFILE_URL}}}" target="_blank" style="display:inline-block;padding:11px 22px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:inherit;text-decoration:none;border:1px solid rgba(136,136,136,0.45);border-radius:8px;">Claim your passport &rarr;</a>
+                    <div style="padding-bottom:8px;">${hl('Make it yours')}</div>
+                    <div style="font-size:14px;line-height:1.5;color:#888888;padding-bottom:14px;">Your spot is saved to this email. Claim your Topia profile with it — this RSVP comes along, your pass is ready at the door, and your passport starts collecting stamps the moment you show up.</div>
+                    <a href="{{{PROFILE_URL}}}" target="_blank" style="display:inline-block;padding:11px 22px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:inherit;text-decoration:none;border:1px solid rgba(136,136,136,0.45);border-radius:8px;">Claim your profile &rarr;</a>
                   </td>
                 </tr>
               </table>
@@ -148,7 +148,7 @@ function shell(c) {
             <td style="padding:10px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#888888;">
               ${c.note}
             </td>
-          </tr>` : ''}${c.whenWhere ? whenWhereBlock() : ''}${c.card ? stampCardBlock() : ''}${primaryButton(c.primary.label, c.primary.url)}${c.secondary ? secondaryNudge() : ''}${c.info ? infoBlock(c.info.label, c.info.body) : ''}${c.fallbackUrl ? fallbackLink(c.fallbackUrl) : ''}
+          </tr>` : ''}${c.whenWhere ? whenWhereBlock() : ''}${c.card ? stampCardBlock() : ''}${primaryButton(c.primary.label, c.primary.url)}${c.secondary ? secondaryNudge() : ''}${c.claimSlot ? '{{{CLAIM_BLOCK}}}' : ''}${c.info ? infoBlock(c.info.label, c.info.body) : ''}${c.fallbackUrl ? fallbackLink(c.fallbackUrl) : ''}
 
           <tr>
             <td style="padding:28px 32px 0 32px;">
@@ -215,6 +215,15 @@ const T = {
     headline: '{{{EVENT_NAME}}}',
     note: "this time — keep an eye out, there's always more happening on Topia.",
     whenWhere: false, primary: { label: 'View event &rarr;', url: 'EVENT_URL' }, fallbackUrl: 'EVENT_URL',
+  },
+  'event-ticket-confirmed': {
+    title: "You're in", preheader: 'Ticket confirmed. See you there &rarr;',
+    lede: 'Ticket confirmed',
+    intro: "<strong style=\"color:inherit;\">{{{GUEST_NAME}}}</strong>, you're confirmed for",
+    headline: '{{{EVENT_NAME}}}', whenWhere: false,
+    primary: { label: 'View event &rarr;', url: 'EVENT_URL' }, claimSlot: true,
+    info: { label: 'Your order', body: '{{{TICKET_COUNT_LABEL}}} &middot; {{{ORDER_TOTAL}}}' },
+    fallbackUrl: 'EVENT_URL',
   },
   'event-host-rsvp-alert': {
     title: 'New activity on your event', preheader: '{{{GUEST_NAME}}} · {{{EVENT_NAME}}}',

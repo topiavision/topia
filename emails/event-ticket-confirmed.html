@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
-<title>Tickets confirmed</title>
+<title>You're in</title>
 </head>
 <body style="margin:0;padding:0;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;">
-    Your tickets are confirmed. See you there &rarr;
+    Ticket confirmed. See you there &rarr;
     &#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;&#8204;
   </div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -23,11 +23,11 @@
             </td>
           </tr>
 
-          <tr><td style="padding:22px 32px 0 32px;"><span style="display:inline-block;background:#e4fe52;color:#000000;padding:4px 8px;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;">Tickets confirmed</span></td></tr>
+          <tr><td style="padding:22px 32px 0 32px;"><span style="display:inline-block;background:#e4fe52;color:#000000;padding:4px 8px;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;">Ticket confirmed</span></td></tr>
 
           <tr>
             <td style="padding:14px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#888888;">
-              <strong style="color:inherit;">{{{GUEST_NAME}}}</strong>, you&rsquo;re in. Your order for
+              <strong style="color:inherit;">{{{GUEST_NAME}}}</strong>, you're confirmed for
             </td>
           </tr>
           <tr>
@@ -36,34 +36,23 @@
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#888888;">
-              is confirmed.
-            </td>
-          </tr>
-
-          <tr>
-            <td style="padding:24px 32px 0 32px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;">
-                <tr><td style="padding:0 0 6px 0;"><span style="display:inline-block;background:#e4fe52;color:#000000;padding:3px 7px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">Order</span></td></tr>
-                <tr><td style="padding:0 0 16px 0;font-size:15px;line-height:1.4;">{{{TICKET_COUNT_LABEL}}}</td></tr>
-                <tr><td style="padding:0 0 6px 0;"><span style="display:inline-block;background:#e4fe52;color:#000000;padding:3px 7px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">Total paid</span></td></tr>
-                <tr><td style="padding:0;font-size:15px;line-height:1.4;">{{{ORDER_TOTAL}}}</td></tr>
-              </table>
-            </td>
-          </tr>
-
-          <tr>
-            <td style="padding:24px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;color:#888888;">
-              Your tickets live on the event page &mdash; open it on your phone at the door and we&rsquo;ll scan you in.
-            </td>
-          </tr>
-
-          <tr>
-            <td style="padding:22px 32px 0 32px;">
+            <td style="padding:28px 32px 0 32px;">
               <table role="presentation" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" bgcolor="#e4fe52" style="border-radius:8px;">
-                    <a href="{{{EVENT_URL}}}" target="_blank" style="display:inline-block;padding:14px 28px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:14px;letter-spacing:1px;text-transform:uppercase;color:#000000;text-decoration:none;border-radius:8px;">View my tickets &rarr;</a>
+                    <a href="{{{EVENT_URL}}}" target="_blank" style="display:inline-block;padding:14px 28px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:14px;letter-spacing:1px;text-transform:uppercase;color:#000000;text-decoration:none;border-radius:8px;">View event &rarr;</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>{{{CLAIM_BLOCK}}}
+          <tr>
+            <td style="padding:22px 32px 0 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(136,136,136,0.25);border-radius:12px;">
+                <tr>
+                  <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;">
+                    <div style="padding-bottom:8px;"><span style="display:inline-block;background:#e4fe52;color:#000000;padding:3px 7px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">Your order</span></div>
+                    <div style="font-size:14px;line-height:1.5;color:#888888;">{{{TICKET_COUNT_LABEL}}} &middot; {{{ORDER_TOTAL}}}</div>
                   </td>
                 </tr>
               </table>
