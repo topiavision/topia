@@ -8,6 +8,7 @@ import type { EventComposerInitial } from '../_components/EventComposer';
 import type { StagedTickets } from '../_components/TicketSetup';
 import { EventBuilder } from '../../components/builder/event/EventBuilder';
 import { AssistantLauncher } from '../../components/builder/AssistantLauncher';
+import LoginWall from '../../components/LoginWall';
 
 /* Create event — assistant-first, v0-style: the builder IS the page.
  * Describe the event on the left, watch it assemble on the right, then the
@@ -41,9 +42,8 @@ export default function CreateEventPage() {
   if (!ready) return <div className="min-h-screen bg-[var(--page-bg)]" />;
   if (!authenticated) {
     return (
-      <div className="min-h-screen bg-[var(--page-bg)] flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="font-mono text-[13px] text-ink">Please log in to create an event.</p>
-        <a href="/events" className="font-mono text-[11px] uppercase tracking-[2px] text-ink/50 hover:text-ink underline">← Back to Events</a>
+      <div className="min-h-screen bg-[var(--page-bg)] flex flex-col items-center justify-center">
+        <LoginWall message="Log in to create an event." backHref="/events" backLabel="Back to Events" />
       </div>
     );
   }

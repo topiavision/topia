@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import LoginWall from '../../components/LoginWall';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'ETH'];
 const DEADLINE_TYPES = ['Fixed', 'Rolling', 'Ongoing', 'TBD'];
@@ -177,8 +178,8 @@ export default function SubmitGrantModal({ open, onClose, onSubmitted }: Props) 
         </div>
 
         {!authenticated ? (
-          <div className="p-6 text-center">
-            <p className="font-mono text-[13px] uppercase mb-4" style={{ color: 'var(--foreground)' }}>Log in to submit a grant</p>
+          <div className="p-4 text-center">
+            <LoginWall message="Log in to submit a grant." />
             <button
               onClick={onClose}
               className="font-mono text-[13px] uppercase border rounded-lg px-4 py-1.5 hover:opacity-70 transition"

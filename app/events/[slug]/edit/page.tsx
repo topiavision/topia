@@ -7,6 +7,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import Navigation from '../../../components/Navigation';
 import LoadingBar from '../../../components/LoadingBar';
 import EventComposer, { type EventComposerInitial } from '../../_components/EventComposer';
+import LoginWall from '../../../components/LoginWall';
 
 // "9:00 PM" → "21:00" for <input type=time>
 function parseTo24h(timeStr: string): string {
@@ -69,8 +70,7 @@ export default function EditEventPage({ params }: { params: Promise<{ slug: stri
     return (
       <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: 'var(--background)' }}>
         <Navigation />
-        <p className="font-mono text-[13px] mb-4" style={{ color: 'var(--foreground)' }}>Please log in to edit this event.</p>
-        <Link href={`/events/${slug}`} className="font-mono text-[13px] underline" style={{ color: 'var(--foreground)' }}>← Back to event</Link>
+        <LoginWall message="Log in to edit this event." backHref={`/events/${slug}`} backLabel="Back to event" />
       </div>
     );
   }

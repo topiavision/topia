@@ -11,7 +11,7 @@ interface FollowButtonProps {
 }
 
 export default function FollowButton({ targetUserId, initialIsFollowing = false, onFollowChange }: FollowButtonProps) {
-  const { authenticated, user } = usePrivy();
+  const { authenticated, user, ready, login } = usePrivy();
   const toast = useToast();
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [busy, setBusy] = useState(false);
@@ -21,7 +21,18 @@ export default function FollowButton({ targetUserId, initialIsFollowing = false,
   // value updates instead of being stuck on "Follow".
   useEffect(() => { setIsFollowing(initialIsFollowing); }, [initialIsFollowing]);
 
-  if (!authenticated) return null;
+  // Logged-out visitors still see the primary action — tapping it opens the
+  // Privy login modal instead of the button silently not existing.
+  if (!authenticated) {
+    return (
+      <button
+        onClick={() => { if (ready) login(); }}
+        className="font-mono text-[10px] uppercase tracking-wider rounded-sm px-2.5 py-1 transition-colors cursor-pointer bg-lime text-obsidian border border-lime font-bold hover:opacity-80"
+      >
+        Connect
+      </button>
+    );
+  }
 
   const handleToggle = async () => {
     if (busy || !user) return;

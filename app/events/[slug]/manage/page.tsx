@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import Navigation from '../../../components/Navigation';
 import LoadingBar from '../../../components/LoadingBar';
+import LoginWall from '../../../components/LoginWall';
 import { QUESTION_TYPES, SELECT_TYPES, answerToText, DEFAULT_LABELS, ROLE_TAGS } from '../../../../lib/events/questions';
 import { useUserProfile } from '../../../hooks/useUserProfile';
 import { PAYMENTS_ENABLED } from '../../../../lib/featureFlags';
@@ -114,14 +115,28 @@ export default function ManageEventPage({ params }: { params: Promise<{ slug: st
   if (!ready || loading) {
     return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--background)' }}><Navigation /><LoadingBar /></div>;
   }
-  if (!authenticated || notHost || !event) {
+  if (!authenticated) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: 'var(--background)' }}>
         <Navigation />
-        <p className="font-mono text-[13px] mb-4" style={{ color: 'var(--foreground)' }}>
-          {notHost ? 'Only the event host can manage this event.' : 'Please log in as a host.'}
+        <LoginWall message="Log in as a host to manage this event." backHref={`/events/${slug}`} backLabel="Back to event" />
+      </div>
+    );
+  }
+  if (notHost || !event) {
+    // Authenticated, but either a confirmed non-manager (notHost) or the slug
+    // resolved to no event at all — a bad slug is NOT a login problem.
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: 'var(--background)' }}>
+        <Navigation />
+        <p className="font-mono text-[13px] mb-4 px-6 text-center" style={{ color: 'var(--foreground)' }}>
+          {notHost
+            ? 'Only event managers can manage this event — ask the host to make you a manager.'
+            : 'Event not found.'}
         </p>
-        <Link href={`/events/${slug}`} className="font-mono text-[13px] underline" style={{ color: 'var(--foreground)' }}>← Back to event</Link>
+        <Link href={notHost ? `/events/${slug}` : '/events'} className="font-mono text-[13px] underline" style={{ color: 'var(--foreground)' }}>
+          {notHost ? '← Back to event' : '← Back to Events'}
+        </Link>
       </div>
     );
   }

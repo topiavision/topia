@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import Thread, { Avatar, type OtherUser } from './Thread';
+import LoginWall from '../components/LoginWall';
 
 interface InboxItem {
   conversationId: string;
@@ -79,8 +80,8 @@ export default function MessagesClient({ initialConversationId = null }: Message
 
   if (ready && !authenticated) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="font-mono text-[12px] uppercase tracking-[2px] text-ink/40">log in to view messages</p>
+      <div className="flex-1 flex items-center justify-center overflow-y-auto">
+        <LoginWall message="Log in to view your messages." />
       </div>
     );
   }
