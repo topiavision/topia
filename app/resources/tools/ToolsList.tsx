@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Skeleton } from '../../components/Skeleton';
+import { LoadFailed } from '../../components/AsyncStates';
 import { faviconUrl } from './favicon';
 import { fuzzyMatch } from './fuzzy';
 
@@ -62,6 +63,9 @@ interface TrendingTool {
 export default function ToolsList({ initialTools = [] }: { initialTools?: Tool[] }) {
   const [allTools, setAllTools] = useState<Tool[]>(initialTools);
   const [loading, setLoading] = useState(initialTools.length === 0);
+  // A failed directory fetch must render as an error with retry, not as
+  // the "no tools found" empty state.
+  const [loadError, setLoadError] = useState(false);
   const [initialLoad, setInitialLoad] = useState(initialTools.length === 0);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [search, setSearch] = useState('');
@@ -108,22 +112,28 @@ export default function ToolsList({ initialTools = [] }: { initialTools?: Tool[]
   }, []);
 
   // Single fetch — load everything once, filter & sort client-side for instant feel + fuzzy.
-  // Skipped when the server page already seeded the list.
+  // Skipped when the server page already seeded the list. Also the retry path.
+  const fetchTools = async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const response = await fetch('/api/tools');
+      if (!response.ok) throw new Error(`tools fetch failed (${response.status})`);
+      const data = await response.json();
+      setAllTools((data.tools as Tool[]) || []);
+    } catch (error) {
+      console.error('Error fetching tools:', error);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
     if (initialFetchedRef.current) return;
     initialFetchedRef.current = true;
     if (initialTools.length > 0) return;
-    (async () => {
-      try {
-        const response = await fetch('/api/tools');
-        const data = await response.json();
-        setAllTools((data.tools as Tool[]) || []);
-      } catch (error) {
-        console.error('Error fetching tools:', error);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    void fetchTools();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Trending + newest
@@ -321,6 +331,9 @@ export default function ToolsList({ initialTools = [] }: { initialTools?: Tool[]
                     </div>
                   ))}
                 </div>
+              ) : loadError && allTools.length === 0 && !loading ? (
+                /* Fetch failed with nothing loaded — an error, not emptiness. */
+                <LoadFailed what="the tools directory" onRetry={() => void fetchTools()} className="py-16" />
               ) : tools.length === 0 && !loading ? (
                 <div className="text-center py-16">
                   <p className="font-mono text-[13px] uppercase tracking-[2px] text-[var(--text-muted)] mb-4">

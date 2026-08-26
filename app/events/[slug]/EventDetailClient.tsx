@@ -238,6 +238,10 @@ export default function EventDetailClient({ slug }: { slug: string }) {
   // (the free RSVP button hides; buying auto-RSVPs the buyer as 'going').
   const [ticketGated, setTicketGated] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Error vs not-found: a failed fetch must not render "Event not found."
+  // (the event may exist fine — the network/server just hiccuped).
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -316,17 +320,24 @@ export default function EventDetailClient({ slug }: { slug: string }) {
   useEffect(() => {
     const viewerParam = privyUser?.id ? `&viewerPrivyId=${privyUser.id}` : '';
     fetch(`/api/events?slug=${slug}${viewerParam}`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`event fetch failed (${r.status})`);
+        return r.json();
+      })
       .then(data => {
+        setLoadError(false);
         if (data.events?.length > 0) {
           setEvent(data.events[0]);
         }
         // Mark that the loaded status now reflects this viewer (or anonymous).
         setStatusViewer(privyUser?.id ?? null);
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error('[event] load failed', err);
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
-  }, [slug, privyUser?.id]);
+  }, [slug, privyUser?.id, loadAttempt]);
 
   const downloadICal = () => {
     if (!event) return;
@@ -475,6 +486,24 @@ export default function EventDetailClient({ slug }: { slug: string }) {
     );
   }
 
+  // Fetch failed and we have nothing to show — honest error with a retry,
+  // never "Event not found." (which implies the event doesn't exist).
+  if (loadError && !event) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: 'var(--page-bg)' }}>
+        <Navigation />
+        <p className="font-mono text-[13px] mb-1" style={{ color: 'var(--foreground)' }}>Couldn&rsquo;t load this event.</p>
+        <button
+          onClick={() => { setLoadError(false); setLoading(true); setLoadAttempt((n) => n + 1); }}
+          className="mt-3 font-mono text-[11px] uppercase tracking-[2px] text-[var(--accent-ink)] border border-[var(--accent-ink)]/40 hover:opacity-70 px-3 py-1.5 rounded-sm bg-transparent cursor-pointer transition"
+        >
+          retry
+        </button>
+        <Link href="/events" className="mt-4 font-mono text-[13px] underline" style={{ color: 'var(--foreground)' }}>← Back to Events</Link>
+      </div>
+    );
+  }
+
   if (!event) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: 'var(--page-bg)' }}>
@@ -589,22 +618,35 @@ export default function EventDetailClient({ slug }: { slug: string }) {
               <div className="mt-6 pt-6 border-t" style={{ borderColor: 'var(--border-color)' }}>
                 <p className="font-mono text-[10px] uppercase tracking-[2px] mb-3" style={{ color: 'var(--text-muted)' }}>Hosted by</p>
                 <div className="space-y-3">
-                  {visibleHosts.map((host) => (
-                    <Link key={host.userId} href={host.username ? `/profile/${host.username}` : '#'} className="flex items-center gap-2.5 group no-underline">
-                      {host.avatarUrl ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={host.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-mono text-[12px] font-bold" style={{ backgroundColor: 'var(--surface-hover)', color: 'var(--foreground)' }}>
-                          {(host.name || host.username || '?')[0].toUpperCase()}
-                        </div>
-                      )}
-                      <span className="font-mono text-[13px] group-hover:opacity-70 transition" style={{ color: 'var(--foreground)' }}>
-                        {host.name || host.username || 'Host'}
-                        {host.role === 'creator' && <span style={{ color: 'var(--text-muted)' }}> · Creator</span>}
-                      </span>
-                    </Link>
-                  ))}
+                  {visibleHosts.map((host) => {
+                    const inner = (
+                      <>
+                        {host.avatarUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={host.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center font-mono text-[12px] font-bold" style={{ backgroundColor: 'var(--surface-hover)', color: 'var(--foreground)' }}>
+                            {(host.name || host.username || '?')[0].toUpperCase()}
+                          </div>
+                        )}
+                        <span className="font-mono text-[13px] group-hover:opacity-70 transition" style={{ color: 'var(--foreground)' }}>
+                          {host.name || host.username || 'Host'}
+                          {host.role === 'creator' && <span style={{ color: 'var(--text-muted)' }}> · Creator</span>}
+                        </span>
+                      </>
+                    );
+                    // Hosts without a username have no profile page — render a
+                    // plain row, not a dead href="#" link.
+                    return host.username ? (
+                      <Link key={host.userId} href={`/profile/${host.username}`} className="flex items-center gap-2.5 group no-underline">
+                        {inner}
+                      </Link>
+                    ) : (
+                      <div key={host.userId} className="flex items-center gap-2.5">
+                        {inner}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

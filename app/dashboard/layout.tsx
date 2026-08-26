@@ -17,7 +17,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { ready, authenticated } = usePrivy();
   const router = useRouter();
   const { profile, worldMemberships, features, loading } = useUserProfile();
-  const [hostedEvents, setHostedEvents] = useState<HostedEvent[]>([]);
+  // Null sentinel: null = not loaded yet. [] only ever means "really none" —
+  // the events page must never show "No events yet." while this is null.
+  const [hostedEvents, setHostedEvents] = useState<HostedEvent[] | null>(null);
+  const [eventsError, setEventsError] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -31,11 +34,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [eventsRefresh, setEventsRefresh] = useState(0);
   useEffect(() => {
     if (!profile?.id) return;
+    let cancelled = false;
+    setEventsError(false);
     fetch(`/api/events?hostUserId=${profile.id}&includeUnpublished=1`)
-      .then((r) => r.json())
-      .then((data) => setHostedEvents(data.events || []))
-      .catch(console.error);
+      .then((r) => {
+        if (!r.ok) throw new Error(`hosted events fetch failed (${r.status})`);
+        return r.json();
+      })
+      .then((data) => { if (!cancelled) setHostedEvents(data.events || []); })
+      .catch((err) => {
+        console.error('[dashboard] hosted events load failed', err);
+        if (!cancelled) setEventsError(true);
+      });
+    return () => { cancelled = true; };
   }, [profile?.id, eventsRefresh]);
+
+  // State machine: null + error → 'error'; null → 'loading'; loaded → 'loaded'.
+  // A failed background refresh (hostedEvents already an array) stays 'loaded'
+  // with the last good list rather than blanking the page.
+  const eventsStatus = hostedEvents === null ? (eventsError ? 'error' as const : 'loading' as const) : 'loaded' as const;
 
   if (!ready || loading) {
     return (
@@ -53,7 +70,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <DashboardContext.Provider value={{ profile, worldMemberships, features, hostedEvents, refreshEvents: () => setEventsRefresh((n) => n + 1) }}>
+    <DashboardContext.Provider value={{ profile, worldMemberships, features, hostedEvents: hostedEvents ?? [], eventsStatus, refreshEvents: () => setEventsRefresh((n) => n + 1) }}>
       <DashboardOverviewProvider>
         <SidebarProvider>
           <DashboardShell>{children}</DashboardShell>

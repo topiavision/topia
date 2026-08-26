@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Skeleton } from '../../components/Skeleton';
+import { LoadFailed } from '../../components/AsyncStates';
 
 const SubmitGrantModal = dynamic(() => import('./SubmitGrantModal'), { ssr: false });
 
@@ -34,6 +35,8 @@ const COMMON_TAGS = [
 export default function GrantsList({ initialGrants = [] }: { initialGrants?: Grant[] }) {
   const [grants, setGrants] = useState<Grant[]>(initialGrants);
   const [loading, setLoading] = useState(initialGrants.length === 0);
+  // A failed fetch must render as an error with retry, not as "no grants found".
+  const [loadError, setLoadError] = useState(false);
   const [initialLoad, setInitialLoad] = useState(initialGrants.length === 0);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -69,6 +72,7 @@ export default function GrantsList({ initialGrants = [] }: { initialGrants?: Gra
 
   const fetchGrants = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append('search', debouncedSearch);
@@ -76,10 +80,12 @@ export default function GrantsList({ initialGrants = [] }: { initialGrants?: Gra
       params.append('sortBy', sortBy);
 
       const response = await fetch(`/api/grants?${params}`);
+      if (!response.ok) throw new Error(`grants fetch failed (${response.status})`);
       const data = await response.json();
       setGrants(data.grants || []);
     } catch (error) {
       console.error('Error fetching grants:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -234,6 +240,9 @@ export default function GrantsList({ initialGrants = [] }: { initialGrants?: Gra
                     </div>
                   ))}
                 </div>
+              ) : loadError && grants.length === 0 && !loading ? (
+                /* Fetch failed with nothing loaded — an error, not emptiness. */
+                <LoadFailed what="the grants directory" onRetry={() => void fetchGrants()} className="py-16" />
               ) : grants.length === 0 && !loading ? (
                 <div className="text-center py-16">
                   <p className="font-mono text-[13px] uppercase tracking-[2px] text-[var(--text-muted)] mb-4">
@@ -241,14 +250,22 @@ export default function GrantsList({ initialGrants = [] }: { initialGrants?: Gra
                       ? `no grants${search ? ` matching "${search}"` : ''}${selectedTag !== 'all tags' ? ` tagged ${selectedTag}` : ''}`
                       : 'no grants found'}
                   </p>
-                  {(search || selectedTag !== 'all tags') && (
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {(search || selectedTag !== 'all tags') && (
+                      <button
+                        onClick={() => { setSearch(''); setSelectedTag('all tags'); }}
+                        className="font-mono text-[11px] uppercase tracking-[2px] text-ink/60 border border-ink/20 hover:border-ink/60 px-3 py-1.5 rounded-sm bg-transparent cursor-pointer transition"
+                      >
+                        clear filters
+                      </button>
+                    )}
                     <button
-                      onClick={() => { setSearch(''); setSelectedTag('all tags'); }}
+                      onClick={() => setSubmitOpen(true)}
                       className="font-mono text-[11px] uppercase tracking-[2px] text-ink/60 border border-ink/20 hover:border-ink/60 px-3 py-1.5 rounded-sm bg-transparent cursor-pointer transition"
                     >
-                      clear filters
+                      + submit a grant
                     </button>
-                  )}
+                  </div>
                 </div>
               ) : (
                 <div className={`space-y-3 transition-opacity duration-200 ${loading ? 'opacity-50' : 'opacity-100'}`}>
