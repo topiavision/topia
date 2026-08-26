@@ -89,6 +89,7 @@ export function TopiaAgent({ privyId, onExit }: {
     }
 
     setCanvas({ view: 'results', entity: entity.entity, query: entity.role ?? entity.query, items, suggestions });
+    window.dispatchEvent(new CustomEvent('topia:open-builder-canvas'));
     setChips(CAP_CHIPS);
     return items.length === 0
       ? (suggestions && suggestions.length > 0
@@ -115,6 +116,7 @@ export function TopiaAgent({ privyId, onExit }: {
       }
       case 'help':
         setCanvas({ view: 'capabilities' });
+        window.dispatchEvent(new CustomEvent('topia:open-builder-canvas'));
         pushBot(`Here's the map — every card opens the real thing. Or just describe what you want to make.`);
         setChips(CAP_CHIPS);
         return;
