@@ -5,12 +5,17 @@ import { postKindGlyph, linkThumbnail } from '@/lib/processPosts';
 import { ORANGE, orangeMix } from './constants';
 import { PostModal } from './PostModal';
 import type { EraView, LogEntry, Moment } from './types';
-/* ── Process log strip (native posts + synced moments) ─────────────── */
-export function ProcessLog({ era, privyId, canEdit, onChanged, filter, onClearFilter }: {
+/* ── The log — the body of the page now, not a strip at the bottom.
+ * Native posts + synced In Process moments, reverse-chron, as real
+ * cards in a feed grid. Media leads where it exists; text posts get
+ * room to breathe; every card names its milestone. ────────────────── */
+export function ProcessLog({ era, privyId, canEdit, onChanged, filter, onClearFilter, onCompose }: {
   era: EraView; privyId: string; canEdit: boolean; onChanged: () => void;
-  /** Set when a milestone is selected on the timeline — the log shows only its updates. */
+  /** Set when a milestone is selected on the rail — the log shows only its updates. */
   filter?: { id: string; index: number; title: string } | null;
   onClearFilter?: () => void;
+  /** Owner affordance: opens the composer (rendered by the caller). */
+  onCompose?: () => void;
 }) {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [viewing, setViewing] = useState<LogEntry | null>(null);
@@ -53,16 +58,16 @@ export function ProcessLog({ era, privyId, canEdit, onChanged, filter, onClearFi
     onChanged();
   };
 
-  // A selected milestone narrows the strip to its updates.
+  // A selected milestone narrows the feed to its updates.
   const shown = filter ? entries.filter((e) => e.milestoneId === filter.id) : entries;
 
   if (entries.length === 0 && !canEdit && !filter) return null;
 
   return (
-    <div className="mt-5">
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
-        <span className="font-mono text-[10px] uppercase tracking-[2px] text-ink/40 inline-flex items-center gap-2 flex-wrap">
-          Process log{!filter && era.inProcessUrl ? ' · synced with In Process' : ''}
+    <div>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-2.5">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-[2px] text-ink/50 inline-flex items-center gap-2 flex-wrap">
+          The log{!filter && era.inProcessUrl ? ' · synced with In Process' : ''}
           {filter && (
             <button
               onClick={onClearFilter}
@@ -74,50 +79,60 @@ export function ProcessLog({ era, privyId, canEdit, onChanged, filter, onClearFi
             </button>
           )}
         </span>
-        {filter ? (
-          <button onClick={onClearFilter} className="font-mono text-[10px] uppercase tracking-[1px] underline cursor-pointer bg-transparent border-none text-ink/45">
-            Show all ({entries.length})
-          </button>
-        ) : era.inProcessUrl ? (
-          <a href={era.inProcessUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] uppercase tracking-[1px] no-underline" style={{ color: ORANGE }}>
-            Full timeline ↗
-          </a>
-        ) : null}
+        <span className="inline-flex items-center gap-3">
+          {filter ? (
+            <button onClick={onClearFilter} className="font-mono text-[10px] uppercase tracking-[1px] underline cursor-pointer bg-transparent border-none text-ink/45">
+              Show all ({entries.length})
+            </button>
+          ) : era.inProcessUrl ? (
+            <a href={era.inProcessUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] uppercase tracking-[1px] no-underline" style={{ color: ORANGE }}>
+              Full timeline ↗
+            </a>
+          ) : null}
+          {onCompose && (
+            <button
+              onClick={onCompose}
+              className="font-mono text-[10px] uppercase tracking-[1px] px-3 py-1.5 rounded-sm cursor-pointer border border-ink/20 bg-transparent text-ink/60 hover:border-ink/45 hover:text-ink transition"
+            >
+              + Post an update
+            </button>
+          )}
+        </span>
       </div>
+
       {shown.length === 0 ? (
         <p className="font-mono text-[11px] text-ink/35">
           {filter
-            ? <>No updates tied to this milestone yet{canEdit ? ' — post one below and it files here.' : '.'}</>
-            : <>Nothing logged yet — post the first update below.</>}
+            ? <>No updates tied to this milestone yet{canEdit ? ' — post one and it files here.' : '.'}</>
+            : <>Nothing logged yet{canEdit ? ' — post the first update.' : '.'}</>}
         </p>
       ) : (
-        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           {shown.map((e) => {
             const msIndex = e.milestoneId ? era.milestones.findIndex((m) => m.id === e.milestoneId) : -1;
             return (
               <button
                 key={e.id}
                 onClick={() => setViewing(e)}
-                className="shrink-0 w-[132px] border border-ink/[0.08] rounded-sm overflow-hidden bg-transparent p-0 text-left cursor-pointer hover:border-ink/30 transition"
+                className="border border-ink/[0.1] rounded-lg overflow-hidden bg-transparent p-0 text-left cursor-pointer hover:border-ink/35 hover:-translate-y-0.5 transition-all flex flex-col"
               >
-                {e.imageUrl ? (
+                {e.imageUrl && (
                   /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={e.imageUrl} alt="" className="w-full h-[88px] object-cover block" loading="lazy" />
-                ) : e.body ? (
-                  <div className="w-full h-[88px] px-2 py-1.5 bg-ink/[0.03] overflow-hidden">
-                    <p className="font-mono text-[9px] leading-snug text-ink/55 line-clamp-5">{e.body}</p>
-                  </div>
-                ) : (
-                  <div className="w-full h-[88px] flex items-center justify-center bg-ink/[0.04]">
-                    <span className="font-mono text-[16px] text-ink/25">{e.glyph}</span>
-                  </div>
+                  <img src={e.imageUrl} alt="" className="w-full h-[140px] object-cover block" loading="lazy" />
                 )}
-                <div className="px-2 py-1.5">
-                  <p className="font-mono text-[10px] font-bold text-ink truncate">{e.glyph} {e.title}</p>
-                  <p className="font-mono text-[9px] text-ink/40">
+                <div className="px-3.5 py-3 flex flex-col gap-1.5 flex-grow">
+                  <p className="font-mono text-[12.5px] font-bold text-ink leading-snug">{e.glyph} {e.title}</p>
+                  {e.body && !e.imageUrl && (
+                    <p className="font-mono text-[11px] text-ink/55 leading-relaxed line-clamp-4">{e.body}</p>
+                  )}
+                  {e.body && e.imageUrl && (
+                    <p className="font-mono text-[11px] text-ink/55 leading-relaxed line-clamp-2">{e.body}</p>
+                  )}
+                  <p className="font-mono text-[9.5px] text-ink/40 mt-auto pt-1">
                     {e.date && new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {e.postId === null && <span className="ml-1.5">· via In Process</span>}
                     {msIndex >= 0 && <span className="ml-1.5 font-bold" style={{ color: ORANGE }}>M{String(msIndex + 1).padStart(2, '0')}</span>}
-                    {!!e.mintedUrl && <span className="ml-1.5" style={{ color: ORANGE }}>⛓</span>}
+                    {!!e.mintedUrl && <span className="ml-1.5" style={{ color: ORANGE }}>⛓ collectible</span>}
                   </p>
                 </div>
               </button>
