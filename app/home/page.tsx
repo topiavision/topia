@@ -15,16 +15,30 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const [episodes, overview, profiles] = await Promise.all([
-    getTvEpisodes(),
-    getEventsOverview(),
-    getPublicProfiles({ limit: 24, completeOnly: true }),
+  // Each source degrades to an empty list on failure — a DB blip on one query
+  // must not 500 the whole front door (same pattern as app/tv/page.tsx).
+  // HomeClient renders honest empty states for whatever is missing.
+  const [episodes, events, profiles] = await Promise.all([
+    getTvEpisodes().catch((error) => {
+      console.error('[home] SSR episodes failed:', error);
+      return [] as Awaited<ReturnType<typeof getTvEpisodes>>;
+    }),
+    getEventsOverview()
+      .then((o) => o.events)
+      .catch((error) => {
+        console.error('[home] SSR events failed:', error);
+        return [] as Awaited<ReturnType<typeof getEventsOverview>>['events'];
+      }),
+    getPublicProfiles({ limit: 24, completeOnly: true }).catch((error) => {
+      console.error('[home] SSR profiles failed:', error);
+      return [] as Awaited<ReturnType<typeof getPublicProfiles>>;
+    }),
   ]);
 
   return (
     <HomeClient
       initialEpisodes={episodes}
-      initialEvents={overview.events}
+      initialEvents={events}
       initialProfiles={profiles.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() }))}
     />
   );

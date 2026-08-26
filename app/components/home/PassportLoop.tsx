@@ -165,6 +165,12 @@ export default function PassportLoop({ profiles, showCompleteCta = false }: Prop
 
     gsap.registerPlugin(Draggable);
 
+    // Cards server-render VISIBLE (stacked on the center stage) so the section
+    // is never a full-viewport blank hole before hydration / if JS dies.
+    // GSAP owns opacity from here: hide them all, then seamlessLoop.time(0)
+    // below immediately renders the proper fanned-out states.
+    gsap.set(items, { opacity: 0 });
+
     // Ambient glow colors, aligned with the deck order (CTA card is lime).
     const accents = items.map((el) => {
       const idAttr = el.getAttribute('data-profile');
@@ -397,7 +403,7 @@ export default function PassportLoop({ profiles, showCompleteCta = false }: Prop
               href="/onboarding"
               onClick={suppressDragClick}
               data-profile="cta"
-              className="passport-item absolute inset-0 flex flex-col items-center justify-center text-center gap-3 no-underline rounded-2xl border-2 border-dashed p-5 hover:border-[var(--accent-ink)] transition-colors opacity-0 cursor-grab [.deck-dragging_&]:cursor-grabbing"
+              className="passport-item absolute inset-0 flex flex-col items-center justify-center text-center gap-3 no-underline rounded-2xl border-2 border-dashed p-5 hover:border-[var(--accent-ink)] transition-colors cursor-grab [.deck-dragging_&]:cursor-grabbing"
               style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--page-bg)' }}
               draggable={false}
             >
@@ -410,7 +416,7 @@ export default function PassportLoop({ profiles, showCompleteCta = false }: Prop
               href={`/profile/${p.username}`}
               onClick={suppressDragClick}
               data-profile={p.id}
-              className="passport-item group absolute inset-0 block no-underline opacity-0 cursor-grab [.deck-dragging_&]:cursor-grabbing"
+              className="passport-item group absolute inset-0 block no-underline cursor-grab [.deck-dragging_&]:cursor-grabbing"
               draggable={false}
             >
               <PassportCard p={p} />

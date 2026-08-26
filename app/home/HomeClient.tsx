@@ -447,7 +447,7 @@ export default function HomeClient({
   initialEvents: EventItem[];
   initialProfiles: Profile[];
 }) {
-  const { user } = usePrivy();
+  const { ready, authenticated, user, login } = usePrivy();
   // Server-seeded public data. Events: upcoming first, capped at 7. Profiles:
   // shuffled per visit so Discover stays fresh; real-photo guard for cache.
   const [episodes] = useState<Episode[]>(initialEpisodes);
@@ -518,7 +518,9 @@ export default function HomeClient({
   const moreEps = episodes.slice(1, 5);
   const featuredEvent = events[0];
   const restEvents = events.slice(1, 7);
-  const emptyBox = 'border rounded-xl py-16 text-center font-mono text-[12px] uppercase tracking-[2px] opacity-30';
+  // Legibility floor: these boxes are real content (honest empty states with
+  // a door to the full directory/channel), not placeholders — 30% was ghostly.
+  const emptyBox = 'border rounded-xl py-16 text-center font-mono text-[12px] uppercase tracking-[2px] opacity-[0.55]';
 
   return (
     <PageShell>
@@ -551,21 +553,54 @@ export default function HomeClient({
             <div data-keepclear className="hero-tagline block w-fit max-w-full font-mono font-bold text-[clamp(20px,3.2vw,40px)] uppercase mt-3 leading-tight" style={{ minHeight: '1.2em' }}>
               <CyclingHeadline />
             </div>
+            {/* Logged-out visitors get a join door right in the hero — before
+                this the page had no sign-up CTA anywhere. keepclear so the
+                welcome.txt popup can never sit on top of it. */}
+            {!authenticated && (
+              <div data-keepclear className="block w-fit mt-6">
+                <button
+                  onClick={() => { if (ready) login(); }}
+                  className="font-mono text-[12px] font-bold uppercase tracking-[2px] px-6 py-3 rounded-sm cursor-pointer border-none bg-lime text-obsidian hover:opacity-90 transition"
+                >
+                  Sign up →
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Draggable retro pop-up holding the intro copy */}
           <DraggablePopup boundsRef={heroRef} title="welcome.txt">
-            <p className="font-mono text-[12px] leading-[1.7] font-bold">Welcome to beta — and to a new path for ownership and sovereignty.</p>
+            {/* Concrete orientation first — what this place actually IS. */}
+            <p className="font-mono text-[12px] leading-[1.7] font-bold">Worlds to join, events to attend, creators to meet — and a passport that fills up as you show up.</p>
             <p className="font-mono text-[11px] leading-[1.7]"><span className="font-bold">What is TOPIA?</span> Not another algorithm to fight. Not another platform to feed. It&apos;s the infrastructure: a network of world builders your algorithm can&apos;t contain, and a community to support your ecosystem.</p>
             <p className="font-mono text-[11px] leading-[1.7]">We&apos;re still building. You&apos;re here early because we need you — to tell us what&apos;s working, what&apos;s missing, and what TOPIA should become.</p>
-            {/* The feedback drawer's edge tab was invisible to most users —
-                surface it right where we ask for feedback. */}
-            <button
-              onClick={openFeedbackWidget}
-              className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[2px] px-3.5 py-2 rounded-sm cursor-pointer border-none bg-lime text-obsidian hover:opacity-90 transition"
-            >
-              ✎ Share feedback
-            </button>
+            {/* Primary CTA by viewer state: logged out → join; logged in with an
+                incomplete passport → finish onboarding. Feedback stays as a
+                secondary text link (it silently requires login anyway). */}
+            <div className="flex items-center gap-3 flex-wrap pt-0.5">
+              {!authenticated ? (
+                <button
+                  onClick={() => { if (ready) login(); }}
+                  className="font-mono text-[11px] font-bold uppercase tracking-[2px] px-3.5 py-2 rounded-sm cursor-pointer border-none bg-lime text-obsidian hover:opacity-90 transition"
+                >
+                  Sign up →
+                </button>
+              ) : viewerComplete === false ? (
+                <Link
+                  href="/onboarding"
+                  className="font-mono text-[11px] font-bold uppercase tracking-[2px] px-3.5 py-2 rounded-sm no-underline bg-lime text-obsidian hover:opacity-90 transition"
+                >
+                  Finish your passport →
+                </Link>
+              ) : null}
+              <button
+                onClick={openFeedbackWidget}
+                className="font-mono text-[11px] uppercase tracking-[2px] bg-transparent border-none cursor-pointer p-0 underline underline-offset-2 hover:opacity-70 transition"
+                style={{ color: '#1a1a1a' }}
+              >
+                ✎ Share feedback
+              </button>
+            </div>
           </DraggablePopup>
 
           {/* Scroll cue — centered on the divider, clear of the popup */}
@@ -597,7 +632,12 @@ export default function HomeClient({
             </div>
 
             {profiles.length === 0 && viewerComplete !== false ? (
-              <div className={emptyBox} style={{ ...txt, borderColor: 'var(--border-color)' }}>Loading profiles…</div>
+              // No client refetch exists — an empty server seed stays empty, so
+              // say so honestly and point at the full directory instead of
+              // pretending to load forever.
+              <Link href="/topians" className={`block no-underline hover:opacity-80 transition-opacity ${emptyBox}`} style={{ ...txt, borderColor: 'var(--border-color)' }}>
+                No profiles to show yet — browse all Topians →
+              </Link>
             ) : (
               <PassportLoop profiles={profiles} showCompleteCta={viewerComplete === false} />
             )}
@@ -702,7 +742,11 @@ export default function HomeClient({
           <section className="mb-16">
             <SectionHead label="now playing" title="Topia TV" href="/tv" linkText="Open TV →" />
             {episodes.length === 0 ? (
-              <div className={emptyBox} style={{ ...txt, borderColor: 'var(--border-color)' }}>Loading channel…</div>
+              // Same honesty as Discover: nothing refetches client-side, so an
+              // empty guide is "off air", not "loading".
+              <Link href="/tv" className={`block no-underline hover:opacity-80 transition-opacity ${emptyBox}`} style={{ ...txt, borderColor: 'var(--border-color)' }}>
+                Nothing airing yet — Topia TV →
+              </Link>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3">
                 {featuredEp && <HomeTVPlayer episode={featuredEp} />}
