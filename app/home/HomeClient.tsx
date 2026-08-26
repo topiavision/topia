@@ -6,6 +6,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import PageShell from '../components/PageShell';
 import PassportLoop from '../components/home/PassportLoop';
 import CompleteProfileModal from '../components/home/CompleteProfileModal';
+import { NowStampingTicker } from '../components/elements/NowStampingTicker';
 import BlobImage from '../components/BlobImage';
 import EventCover from '../events/EventCover';
 import NewsletterSignup from '../components/NewsletterSignup';
@@ -533,6 +534,8 @@ export default function HomeClient({
         />
       )}
       <div className="home-cursor min-h-screen" style={{ backgroundColor: 'var(--page-bg)' }}>
+        {/* ── NOW STAMPING — real happenings, proving the network moves ── */}
+        <NowStampingTicker />
 
         {/* ── HERO ── */}
         <header ref={heroRef} className="relative overflow-hidden border-b min-h-[640px] md:min-h-[680px] flex items-start" style={{ borderColor: 'var(--border-color)' }}>

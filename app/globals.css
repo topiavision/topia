@@ -809,3 +809,25 @@ html:not([data-theme="dark"]) .text-ink\/40 { color: color-mix(in srgb, var(--pa
     text-wrap: balance;
   }
 }
+
+
+/* ── Element kit: NOW STAMPING ticker ─────────────────────────────── */
+.ticker-track { display: inline-block; animation: tickerScroll 45s linear infinite; will-change: transform; }
+.ticker-strip:hover .ticker-track { animation-play-state: paused; }
+@keyframes tickerScroll { to { transform: translateX(-50%); } }
+
+/* ── Element kit: the ink stamp ───────────────────────────────────── */
+.ink-stamp {
+  transform: rotate(var(--stamp-tilt, -6deg));
+  animation: stampIn 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+@keyframes stampIn {
+  0%   { transform: scale(1.6) rotate(0deg); opacity: 0; }
+  55%  { transform: scale(0.94) rotate(var(--stamp-tilt, -6deg)); opacity: 1; }
+  100% { transform: scale(1) rotate(var(--stamp-tilt, -6deg)); opacity: 0.95; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+  .ink-stamp { animation: none; opacity: 0.95; }
+}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { SplitFlap } from '../components/elements/SplitFlap';
 import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import PageShell from '../components/PageShell';
@@ -296,6 +297,9 @@ export default function EventsPageClient({
         <section className="px-4 md:px-6 py-4 md:py-6">
           <div className="max-w-[var(--content-max)] mx-auto">
             <div className="grid grid-cols-1 gap-[3px] border border-[var(--border-color)] rounded-lg overflow-hidden">
+
+              {/* ─── ROW 0: DEPARTURES — the next flights out ─── */}
+              <DeparturesBoard events={events} />
 
               {/* ─── ROW 1: Title bar ─── */}
               <div className="bg-[var(--accent)] relative">
@@ -1059,6 +1063,48 @@ function EmptyState({ tab, search, selectedCity, authenticated, onClear, onCreat
         >
           + Create event
         </button>
+      </div>
+    </div>
+  );
+}
+
+
+/* ── DEPARTURES — the next flights out, on a split-flap board ────────
+ * The element the events page always wanted: the soonest three upcoming
+ * events resolve with airport clatter. Status vocabulary: BOARDING
+ * (within 48h) · RSVP OPEN · SOON (undated tail). Rows link to the
+ * event; the board hides when nothing is upcoming. */
+function DeparturesBoard({ events }: { events: EventCard[] }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const soon = new Date(Date.now() + 48 * 3600000).toISOString().slice(0, 10);
+  const upcoming = events
+    .filter((e) => e.dateIso && e.dateIso >= today)
+    .sort((a, b) => (a.dateIso ?? '').localeCompare(b.dateIso ?? ''))
+    .slice(0, 3);
+  if (upcoming.length === 0) return null;
+  return (
+    <div className="px-4 md:px-6 py-4" style={{ backgroundColor: '#141414' }}>
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-[2px]" style={{ color: '#e4fe52' }}>▣ Departures</span>
+        <span className="font-mono text-[9px] uppercase tracking-[1px]" style={{ color: 'rgba(245,240,232,0.45)' }}>tap a row to board</span>
+      </div>
+      <div className="mt-3 flex flex-col gap-2.5">
+        {upcoming.map((e, i) => {
+          const boarding = e.dateIso! <= soon;
+          const dateLabel = new Date(`${e.dateIso}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+          return (
+            <Link key={e.id} href={`/events/${e.slug}`} className="no-underline flex flex-wrap items-center gap-x-4 gap-y-1.5 group">
+              <SplitFlap text={dateLabel} size="sm" delay={i * 220} />
+              <span className="min-w-0 flex-1">
+                <SplitFlap text={e.eventName.slice(0, 22)} size="sm" delay={i * 220 + 90} />
+              </span>
+              {e.city && (
+                <span className="font-mono text-[10px] uppercase tracking-[1px] hidden sm:inline" style={{ color: 'rgba(245,240,232,0.55)' }}>{e.city}</span>
+              )}
+              <SplitFlap text={boarding ? 'BOARDING' : 'RSVP OPEN'} tone={boarding ? 'lime' : 'orange'} size="sm" delay={i * 220 + 180} />
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
