@@ -43,10 +43,6 @@ export default function CreateWorldPage() {
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Catalysts can't create worlds — bounce to the overview.
-  useEffect(() => {
-  }, [profile?.path, router]);
-
   const handleImage = async (file: File | undefined) => {
     if (!file) return;
     setUploading(true);

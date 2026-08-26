@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
-import { useUserProfile } from '../../hooks/useUserProfile';
 import EventComposer, { type DraftQuestion } from '../_components/EventComposer';
 import type { EventComposerInitial } from '../_components/EventComposer';
 import type { StagedTickets } from '../_components/TicketSetup';
@@ -24,7 +23,6 @@ const EMPTY: EventComposerInitial = {
 export default function CreateEventPage() {
   const router = useRouter();
   const { user, ready, authenticated } = usePrivy();
-  const { profile, loading } = useUserProfile();
 
   const [mode, setMode] = useState<'assistant' | 'form'>('assistant');
   // A seed handed over from /assistant ("host a listening party…") — consume once.
@@ -37,12 +35,6 @@ export default function CreateEventPage() {
   });
   const [prefill, setPrefill] = useState<null | { initial: EventComposerInitial; initialQuestions: DraftQuestion[]; initialTickets: StagedTickets }>(null);
   const [seedVersion, setSeedVersion] = useState(0);
-
-  useEffect(() => {
-    if (!loading && profile?.path === 'catalyst') router.push('/dashboard');
-  }, [loading, profile?.path, router]);
-
-  if (!loading && profile?.path === 'catalyst') return null;
 
   // Assistants are for signed-in creators. Wait for Privy before deciding —
   // deciding early bounces real users during hydration (CLAUDE.md rule 5).
