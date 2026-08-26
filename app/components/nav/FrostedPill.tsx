@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
 import { useMessagesBadge } from '../MessagesNavIcon';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { isCoreProfileComplete } from '../../../lib/profile/completeness';
@@ -25,6 +26,7 @@ export default function FrostedPill({ onMenuToggle, onOpenMessages, onOpenCard }
   const pathname = usePathname();
   const messagesBadge = useMessagesBadge();
   const { profile, authenticated, ready } = useUserProfile();
+  const { login } = usePrivy();
   // Everyone sees the live chip — signed-out and not-yet-RSVP'd viewers
   // included (their tap lands on Event Mode's RSVP path). Wait for auth to
   // settle so an RSVP'd user isn't briefly fetched as a stranger.
@@ -74,6 +76,20 @@ export default function FrostedPill({ onMenuToggle, onOpenMessages, onOpenCard }
 
   // One chip at a time — live event > passport > install nudge.
   const showInstallChip = authenticated && installState !== 'hidden' && !showLiveChip && !showPassportChip;
+
+  // Sign-up chip for signed-out visitors: the desktop nav shows Sign up +
+  // Log in, but the mobile pill is icon-only — without this the only way to
+  // an account is buried inside the menu. Session-dismissible; hidden while
+  // the live chip has the slot; waits for `ready` (house bug #5).
+  const [signupDismissed, setSignupDismissed] = useState(true);
+  useEffect(() => {
+    try { setSignupDismissed(sessionStorage.getItem('topia:signup-chip') === 'dismissed'); } catch { setSignupDismissed(false); }
+  }, []);
+  const dismissSignup = () => {
+    setSignupDismissed(true);
+    try { sessionStorage.setItem('topia:signup-chip', 'dismissed'); } catch { /* private mode */ }
+  };
+  const showSignupChip = ready && !authenticated && !signupDismissed && !showLiveChip;
 
   const isActive = (href: string) =>
     href === '/'
@@ -140,6 +156,22 @@ export default function FrostedPill({ onMenuToggle, onOpenMessages, onOpenCard }
             ✦ Finish your passport — 60 seconds
           </Link>
           <button onClick={dismissPassport} aria-label="Dismiss" className="bg-transparent border-none cursor-pointer text-[15px] leading-none p-0 shrink-0" style={{ color: '#1a1a1a', opacity: 0.55 }}>×</button>
+        </div>
+      )}
+
+      {showSignupChip && (
+        <div
+          className="pointer-events-auto flex items-center gap-2.5 rounded-full pl-4 pr-3 py-2.5 max-w-[88vw]"
+          style={{ backgroundColor: 'var(--lime, #e4fe52)', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.45)' }}
+        >
+          <button
+            onClick={login}
+            className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] bg-transparent border-none cursor-pointer p-0 truncate"
+            style={{ color: '#1a1a1a' }}
+          >
+            ✦ Sign up or log in
+          </button>
+          <button onClick={dismissSignup} aria-label="Dismiss" className="bg-transparent border-none cursor-pointer text-[15px] leading-none p-0 shrink-0" style={{ color: '#1a1a1a', opacity: 0.55 }}>×</button>
         </div>
       )}
 

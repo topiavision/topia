@@ -41,7 +41,7 @@ function parseCategories(s: string | null): string[] {
 
 export default function ToolDetail({ data, fullPage, onClose, onExpand }: Props) {
   const { tool, users, worlds, related = [], alternatives = [] } = data;
-  const { authenticated, user } = usePrivy();
+  const { authenticated, user, ready, login } = usePrivy();
   const [saved, setSaved] = useState(false);
   const [using, setUsing] = useState(false);
   const [savePending, setSavePending] = useState(false);
@@ -62,7 +62,9 @@ export default function ToolDetail({ data, fullPage, onClose, onExpand }: Props)
   }, [authenticated, user?.id, tool.slug]);
 
   async function toggle(target: 'saved' | 'using') {
-    if (!authenticated || !user?.id) return;
+    // Logged-out tap = open the login modal (the buttons stay visible so the
+    // action doesn't vanish for signed-out visitors).
+    if (!authenticated || !user?.id) { if (ready) login(); return; }
     const isUsing = target === 'using';
     const currentlyOn = isUsing ? using : saved;
     if (isUsing ? usePending : savePending) return;
@@ -147,8 +149,8 @@ export default function ToolDetail({ data, fullPage, onClose, onExpand }: Props)
           </div>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
-          {authenticated && (
-            <>
+          {/* Visible logged-out too — a tap routes through toggle(), which
+              opens the login modal for signed-out visitors. */}
               <button
                 onClick={() => toggle('using')}
                 disabled={usePending}
@@ -173,8 +175,6 @@ export default function ToolDetail({ data, fullPage, onClose, onExpand }: Props)
               >
                 {savePending ? '…' : saved ? (<><StarIcon size={10} filled /> saved</>) : (<><StarIcon size={10} filled={false} /> save</>)}
               </button>
-            </>
-          )}
         </div>
       </div>
 

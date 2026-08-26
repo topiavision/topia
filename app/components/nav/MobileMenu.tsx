@@ -167,13 +167,25 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             </div>
           </>
         ) : (
-          <button
-            onClick={() => { login(); onClose(); }}
-            className="w-full font-mono text-[13px] uppercase tracking-[2px] font-bold py-3.5 rounded-md cursor-pointer transition-opacity hover:opacity-90"
-            style={{ backgroundColor: 'var(--accent, #e4fe52)', color: '#1a1a1a', border: 'none' }}
-          >
-            Log in
-          </button>
+          <div className="flex flex-col gap-2">
+            {/* Both doors, mirroring the desktop nav: Sign up is THE action
+                (lime), Log in is the quieter sibling. Both open the same
+                Privy modal — it handles new and returning users alike. */}
+            <button
+              onClick={() => { login(); onClose(); }}
+              className="w-full font-mono text-[13px] uppercase tracking-[2px] font-bold py-3.5 rounded-md cursor-pointer transition-opacity hover:opacity-90"
+              style={{ backgroundColor: 'var(--accent, #e4fe52)', color: '#1a1a1a', border: 'none' }}
+            >
+              Sign up
+            </button>
+            <button
+              onClick={() => { login(); onClose(); }}
+              className="w-full font-mono text-[12px] uppercase tracking-[2px] py-2.5 border rounded-md cursor-pointer transition-opacity hover:opacity-70"
+              style={{ color: 'var(--page-text)', borderColor: 'var(--border-color)', background: 'transparent' }}
+            >
+              Log in
+            </button>
+          </div>
         )}
       </div>
     </div>

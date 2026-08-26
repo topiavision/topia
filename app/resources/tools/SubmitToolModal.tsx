@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { CheckIcon } from '../../components/ui/Icons';
+import LoginWall from '../../components/LoginWall';
 
 const TOOL_CATEGORIES = [
   'AI', 'Audio', 'Video', 'Design', '3D', 'Animation', 'Music',
@@ -113,8 +114,8 @@ export default function SubmitToolModal({ open, onClose, onSubmitted }: Props) {
         </div>
 
         {!authenticated ? (
-          <div className="p-6 text-center">
-            <p className="font-mono text-[12px] uppercase tracking-[2px] text-ink/60 mb-3">Log in to submit a tool</p>
+          <div className="p-4 text-center">
+            <LoginWall message="Log in to submit a tool." />
             <button
               onClick={onClose}
               className="font-mono text-[11px] uppercase tracking-[2px] text-ink/40 hover:text-ink bg-transparent border border-ink/20 px-4 py-1.5 cursor-pointer"
