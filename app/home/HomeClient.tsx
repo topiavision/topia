@@ -590,7 +590,7 @@ export default function HomeClient({
                   href="/onboarding"
                   className="font-mono text-[11px] font-bold uppercase tracking-[2px] px-3.5 py-2 rounded-sm no-underline bg-lime text-obsidian hover:opacity-90 transition"
                 >
-                  Finish your passport →
+                  Finish your profile →
                 </Link>
               ) : null}
               <button
