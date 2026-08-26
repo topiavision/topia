@@ -53,9 +53,9 @@ export default function Navigation() {
   return (
     <BadgesProvider>
       <TopNav onOpenMessages={() => openMessages()} />
-      {/* Hide the mobile pill while the Messages modal is open so the keyboard
-          can't reveal it behind the sheet. */}
-      {!msgOpen && <FrostedPill onMenuToggle={() => setMenuOpen(true)} onOpenMessages={() => openMessages()} onOpenCard={() => setCardOpen(true)} />}
+      {/* Hide the mobile pill while the Messages modal or the assistant
+          takeover is open so the keyboard can't reveal it behind the sheet. */}
+      {!msgOpen && !assistantOpen && <FrostedPill onMenuToggle={() => setMenuOpen(true)} onOpenMessages={() => openMessages()} onOpenCard={() => setCardOpen(true)} />}
       {/* Once-a-day full-screen announcement when an event is live today */}
       {/* The full-screen live-event takeover is retired: the live chip in
           both navs is the door, without hijacking the first second of a
