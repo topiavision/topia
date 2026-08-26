@@ -1,6 +1,7 @@
 'use client';
 
 import { usePrivy } from '@privy-io/react-auth';
+import PageShell from '../components/PageShell';
 import { TopiaAgent } from '../components/builder/agent/TopiaAgent';
 
 /* /assistant — the Topia agent. One prompt for anything: discovery, help,
@@ -13,17 +14,21 @@ export default function AssistantPage() {
   if (!ready) return <div className="min-h-screen bg-[var(--page-bg)]" />;
   if (!authenticated || !user) {
     return (
-      <div className="min-h-screen bg-[var(--page-bg)] flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <span className="ipb-orb text-[32px]" style={{ color: 'var(--orange, #FF5C34)' }}>✦</span>
-        <p className="font-mono text-[13px] text-ink">Log in to use the assistant.</p>
-        <a href="/home" className="font-mono text-[11px] uppercase tracking-[2px] text-ink/50 hover:text-ink underline">← Back home</a>
-      </div>
+      <PageShell>
+        <div className="min-h-screen bg-[var(--page-bg)] flex flex-col items-center justify-center gap-4 px-6 text-center">
+          <span className="ipb-orb text-[32px]" style={{ color: 'var(--orange, #FF5C34)' }}>✦</span>
+          <p className="font-mono text-[13px] text-ink">Log in to use the assistant — the button&apos;s in the top bar.</p>
+          <a href="/home" className="font-mono text-[11px] uppercase tracking-[2px] text-ink/50 hover:text-ink underline">← Back home</a>
+        </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-[calc(var(--nav-height)+16px)] pb-[var(--mobile-nav-clearance)] md:pb-8">
-      <TopiaAgent privyId={user.id} />
-    </div>
+    <PageShell>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-[calc(var(--nav-height)+16px)] pb-[var(--mobile-nav-clearance)] md:pb-8">
+        <TopiaAgent privyId={user.id} />
+      </div>
+    </PageShell>
   );
 }

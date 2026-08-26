@@ -7,7 +7,8 @@ import { BuilderShell } from '../BuilderShell';
 import { ChatPane } from '../ChatPane';
 import { useBuilderChat } from '../useBuilderChat';
 import { llmParse } from '../llmParse';
-import { AgentCanvas, type AgentView, type ResultItem } from './AgentCanvas';
+import { ROLE_TAGS } from '@/lib/profile/roleTags';
+import { AgentCanvas, ENTITY_BROWSE, type AgentView, type ResultItem } from './AgentCanvas';
 
 /* The Topia Agent — /assistant. One prompt for everything: discovery and
  * help are answered HERE (result/capability cards in the preview pane);
@@ -55,10 +56,39 @@ export function TopiaAgent({ privyId }: { privyId: string }) {
     const res = await fetch(`/api/search?${params.toString()}`);
     const data = await res.json().catch(() => null);
     const items: ResultItem[] = data?.[entity.entity] ?? [];
-    setCanvas({ view: 'results', entity: entity.entity, query: entity.role ?? entity.query, items });
+
+    // Empty results get REAL doors, not apologies: what exists in the
+    // directory right now, tappable, plus the browse-everything link.
+    let suggestions: { label: string; seed: string }[] | undefined;
+    if (items.length === 0) {
+      if (entity.entity === 'tools') {
+        const cats = await fetch('/api/tools')
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            // Categories are stored CSV per tool ("Music, Production") —
+            // split to atomic chips, case-insensitive dedupe, legacy-tolerant.
+            const seen = new Map<string, string>();
+            for (const tool of d?.tools ?? []) {
+              for (const piece of String(tool.category ?? '').split(',')) {
+                const c = piece.trim();
+                if (c && !seen.has(c.toLowerCase())) seen.set(c.toLowerCase(), c);
+              }
+            }
+            return [...seen.values()].slice(0, 8);
+          })
+          .catch(() => [] as string[]);
+        suggestions = cats.map((c) => ({ label: c, seed: `show me ${c} tools` }));
+      } else if (entity.entity === 'people') {
+        suggestions = ROLE_TAGS.slice(0, 6).map((r) => ({ label: r.label, seed: `show me ${r.label.toLowerCase()}s` }));
+      }
+    }
+
+    setCanvas({ view: 'results', entity: entity.entity, query: entity.role ?? entity.query, items, suggestions });
     setChips(CAP_CHIPS);
     return items.length === 0
-      ? `Nothing matched — the cards pane has a browse link, or try different words.`
+      ? (suggestions && suggestions.length > 0
+        ? `Nothing for that yet — but here's what the directory does have. Tap a category in the pane, or browse everything.`
+        : `Nothing for that yet — ${ENTITY_BROWSE[entity.entity].label.toLowerCase()} is in the pane.`)
       : `Found ${items.length} — they're in the pane${items.length > 1 ? ', tap any to open' : ''}.`;
   }, [setChips]);
 
@@ -116,8 +146,11 @@ export function TopiaAgent({ privyId }: { privyId: string }) {
     <BuilderShell
       title="Topia Assistant"
       variant="page"
-      showClose={false}
-      onRequestClose={() => router.push('/home')}
+      onRequestClose={() => {
+        // Landed here from the nav/palette — × means "take me back".
+        if (window.history.length > 1) window.history.back();
+        else router.push('/home');
+      }}
       chat={
         <ChatPane
           messages={messages}
@@ -130,7 +163,7 @@ export function TopiaAgent({ privyId }: { privyId: string }) {
           placeholder="show me photographers · what tools for video · host a party…"
         />
       }
-      canvas={<AgentCanvas state={canvas} />}
+      canvas={<AgentCanvas state={canvas} onSuggest={(seed) => { pushUser(seed); act(parseAgentUtterance(seed), seed); }} />}
     />
   );
 }

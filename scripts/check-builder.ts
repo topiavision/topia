@@ -253,6 +253,10 @@ check('discover people by role + role slug', parseAgentUtterance('show me photog
   { kind: 'discover', entity: 'people', query: 'photographers', role: 'photographer' });
 check('discover tools distills query', parseAgentUtterance('what tools should i use for video?'),
   { kind: 'discover', entity: 'tools', query: 'video' });
+check('"do people use" cannot hijack entity', parseAgentUtterance('what tools do people use for video'),
+  { kind: 'discover', entity: 'tools', query: 'video' });
+check('"are there" scrubbed for worlds', parseAgentUtterance('are there any worlds for filmmakers').kind === 'discover'
+  && (parseAgentUtterance('are there any worlds for filmmakers') as { entity: string }).entity, 'worlds');
 check('discover events', parseAgentUtterance('find events in la'),
   { kind: 'discover', entity: 'events', query: 'in la' });
 check('bare role word discovers people', parseAgentUtterance('producers').kind, 'discover');

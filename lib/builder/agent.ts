@@ -75,14 +75,17 @@ export function parseAgentUtterance(text: string): AgentIntent {
     || /\b(?:looking for|search for)\b/i.test(raw);
   const role = roleFromQuery(raw);
   if (discover || role) {
-    // Entity-match on the scaffold-stripped text — "show me…" must not hit
-    // the events regex's "show".
-    const stripped = raw.replace(/^(?:show me|find(?:\s+me)?|discover|browse|list|recommend|who(?:'s| is| are)?|what|which|any)\b/i, '');
-    const entity = ENTITY_WORDS.find(([re]) => re.test(stripped))?.[1] ?? (role ? 'people' : null);
+    // Scrub ALL scaffolding before entity matching — "show me…" must not hit
+    // the events regex's "show", and "what tools do people use" must not hit
+    // the people regex's "people".
+    const scrubbed = raw
+      .replace(/^(?:show me|find(?:\s+me)?|discover|browse|list|recommend|who(?:'s| is| are)?|what|which|any)\b/i, '')
+      .replace(/\b(?:should i use|can i use|do people use|are there|is there|to follow|on topia)\b/gi, ' ');
+    const entity = ENTITY_WORDS.find(([re]) => re.test(scrubbed))?.[1] ?? (role ? 'people' : null);
     if (entity) {
-      // Distill the query: strip the discovery scaffolding, keep the meat.
-      const query = stripped
-        .replace(/\b(?:should i use|can i use|do people use|are there|is there|for|to follow|on topia)\b/gi, ' ')
+      // Distill the query: drop the entity nouns and joiners, keep the meat.
+      const query = scrubbed
+        .replace(/\bfor\b/gi, ' ')
         .replace(/\b(?:creators?|people|artists?|members?|tools?|worlds?|events?|grants?|projects?|communities)\b/gi, ' ')
         .replace(/[?.!]/g, ' ')
         .replace(/\s+/g, ' ')
