@@ -166,13 +166,15 @@ export default function TicketPurchase({
   // within seconds; the status endpoint also self-heals if it didn't.
   useEffect(() => {
     if (!returnOrderId || !ready) return;
-    if (!authenticated || !user?.id) return; // wait for Privy to restore the session
+    // Guests poll with the buyer email they typed; authed users with privyId.
     let cancelled = false;
     (async () => {
       for (let i = 0; i < 15 && !cancelled; i++) {
         try {
           const res = await fetch(
-            `/api/checkout/stripe/status?orderId=${encodeURIComponent(returnOrderId)}&privyId=${encodeURIComponent(user.id)}`,
+            user?.id
+              ? `/api/checkout/stripe/status?orderId=${encodeURIComponent(returnOrderId)}&privyId=${encodeURIComponent(user.id)}`
+              : `/api/checkout/stripe/status?orderId=${encodeURIComponent(returnOrderId)}&buyerEmail=${encodeURIComponent((buyerEmail.trim() || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('topia:guest-buyer-email') : '') || '').trim())}`,
           );
           const d = await res.json();
           if (res.ok && d.status === 'paid') {
@@ -220,10 +222,9 @@ export default function TicketPurchase({
   }, []);
 
   const openFor = (tier: TicketType) => {
-    if (!authenticated) {
-      login();
-      return;
-    }
+    // No login required to buy (the owner's call) — the checkout screen
+    // requires full name + email either way, and the success step offers
+    // the account claim.
     setNotice('');
     setSelected(tier);
     setQuantity(1);
@@ -275,7 +276,7 @@ export default function TicketPurchase({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          privyId: user.id,
+          privyId: user?.id ?? undefined,
           ticketTypeId: selected.id,
           quantity,
           buyerFirstName: firstName.trim(),
@@ -295,6 +296,9 @@ export default function TicketPurchase({
         return;
       }
       if (!data.url) throw new Error('Checkout failed — try again.');
+      // Guests lose component state across the Stripe redirect — stash the
+      // buyer email so the return poll can authorize (order UUID + email).
+      try { sessionStorage.setItem('topia:guest-buyer-email', buyerEmail.trim()); } catch { /* nicety */ }
       window.location.href = data.url; // off to Stripe-hosted Checkout
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Checkout failed');
@@ -468,6 +472,21 @@ export default function TicketPurchase({
                 <p className="font-mono text-[13px] opacity-70 mb-6" style={{ color: 'var(--foreground)' }}>
                   {result?.ticketCount ?? quantity} ticket{(result?.ticketCount ?? quantity) > 1 ? 's' : ''} to {selected.name} confirmed.
                 </p>
+                {!authenticated && (
+                  <div className="mb-4 rounded-xl border p-4 text-left" style={{ borderColor: 'var(--border-color)' }}>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.15em] opacity-40 mb-1.5" style={{ color: 'var(--foreground)' }}>Confirm your account</p>
+                    <p className="font-mono text-[12px] leading-snug opacity-70 mb-3.5" style={{ color: 'var(--foreground)' }}>
+                      Your ticket is tied to the email you entered. Create your Topia account with it and the ticket, your pass, and your passport are all in one place.
+                    </p>
+                    <button
+                      onClick={() => login()}
+                      className="w-full px-4 py-3 font-mono text-[13px] uppercase tracking-widest rounded-lg cursor-pointer text-center font-bold border-none transition hover:opacity-90"
+                      style={{ backgroundColor: 'var(--lime)', color: 'var(--obsidian)' }}
+                    >
+                      Claim your account →
+                    </button>
+                  </div>
+                )}
                 <button onClick={close} className="w-full px-4 py-3 font-mono text-[12px] uppercase tracking-widest rounded-lg cursor-pointer border-none font-bold" style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}>
                   Done
                 </button>

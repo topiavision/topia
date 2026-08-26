@@ -2,13 +2,16 @@
 // code, and snapshots the final price into a 'pending' order. The Stripe
 // checkout route starts here, then attaches the Checkout Session.
 import { eq } from 'drizzle-orm';
+import { resolveOrCreateGuestByEmail } from '@/lib/events/guests';
 import { db, eventTicketTypes, ticketOrders, users } from '@/lib/db';
 import { checkPromoCode } from './promo';
 
 export type Rail = 'stripe';
 
 export type CreateOrderInput = {
-  privyId: string;
+  /** Absent for guest checkout — the buyer is then resolved by email
+   * (full name + email are required either way; see below). */
+  privyId?: string;
   ticketTypeId: string;
   quantity: number;
   rail: Rail;
@@ -29,7 +32,6 @@ export type CreateOrderResult =
   | { ok: false; status: number; error: string };
 
 export async function createPendingOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
-  if (!input.privyId) return { ok: false, status: 401, error: 'Not authenticated' };
   if (!input.ticketTypeId) return { ok: false, status: 400, error: 'Missing ticketTypeId' };
 
   const quantity = Math.floor(Number(input.quantity));
@@ -37,24 +39,37 @@ export async function createPendingOrder(input: CreateOrderInput): Promise<Creat
     return { ok: false, status: 400, error: 'Quantity must be a positive integer' };
   }
 
-  const [buyer] = await db
-    .select({ id: users.id, email: users.email })
-    .from(users)
-    .where(eq(users.privyId, input.privyId));
-  if (!buyer) return { ok: false, status: 404, error: 'User not found' };
-
-  // Buyer identity is required for a paid admission — the host needs a name at
-  // the door and an address to send the ticket to. The checkout screen enforces
-  // this too; repeating it here so a direct API call can't create a nameless
-  // order. Falls back to the profile email when the form didn't send one.
+  // Buyer identity is required for a paid admission — full name + email,
+  // logged in or not (the owner's rule). The checkout screen enforces this
+  // too; repeating it here so a direct API call can't create a nameless
+  // order.
   const buyerFirstName = input.buyerFirstName?.trim() || '';
   const buyerLastName = input.buyerLastName?.trim() || '';
-  const buyerEmail = (input.buyerEmail?.trim() || buyer.email || '').trim();
   if (!buyerFirstName || !buyerLastName) {
     return { ok: false, status: 400, error: 'First and last name are required' };
   }
+
+  let buyer: { id: string; email: string | null } | undefined;
+  if (input.privyId) {
+    [buyer] = await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(eq(users.privyId, input.privyId));
+    if (!buyer) return { ok: false, status: 404, error: 'User not found' };
+  }
+  const buyerEmail = (input.buyerEmail?.trim() || buyer?.email || '').trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyerEmail)) {
     return { ok: false, status: 400, error: 'A valid email is required' };
+  }
+  if (!buyer) {
+    // Guest checkout: resolve-or-create by email (privyId null); logging in
+    // later with this email adopts the order (see /api/auth/sync).
+    const guestId = await resolveOrCreateGuestByEmail({
+      email: buyerEmail,
+      name: `${buyerFirstName} ${buyerLastName}`.trim(),
+    });
+    if (!guestId) return { ok: false, status: 400, error: 'A valid email is required' };
+    buyer = { id: guestId, email: buyerEmail };
   }
 
   const [tier] = await db

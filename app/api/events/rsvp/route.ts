@@ -7,6 +7,7 @@ import { promoteFromWaitlist } from '@/lib/events/waitlist';
 import { verifyPrivyEmails } from '@/lib/auth/privyServer';
 import { isEmailConfigured, sendRsvpConfirmation, sendHostRsvpAlert, formatEventSchedule } from '@/lib/notify/email';
 import { roleLabelToSlug } from '@/lib/profile/roleTags';
+import { resolveOrCreateGuestByEmail, isValidEmail } from '@/lib/events/guests';
 import { fallbackAvatarDataUrl } from '@/lib/avatar';
 
 type AnswerMap = Record<string, string | string[] | boolean>;
@@ -89,28 +90,38 @@ export async function POST(request: NextRequest) {
       privyId?: string; eventId?: string; answers?: AnswerMap; email?: string; name?: string; phone?: string; username?: string; avatarUrl?: string; inviteToken?: string; accessToken?: string;
     };
 
-    if (!privyId || !eventId) {
-      return NextResponse.json({ error: 'Missing privyId or eventId' }, { status: 400 });
+    if (!eventId) {
+      return NextResponse.json({ error: 'Missing eventId' }, { status: 400 });
     }
-    // A verified email is required to RSVP. The body's `email` is not trusted —
-    // we confirm it against Privy's record of this user's verified accounts.
+    // GUEST PATH (no privyId): RSVPs no longer require a login — the owner's
+    // Luma-style call. A guest is identified by full name + email; the
+    // confirmation email is their receipt, and logging in later with the same
+    // (Privy-verified) email adopts everything (see /api/auth/sync).
+    const isGuest = !privyId;
     if (!email?.trim()) {
-      return NextResponse.json({ error: 'A verified email is required to RSVP' }, { status: 400 });
+      return NextResponse.json({ error: isGuest ? 'Your email is required to RSVP' : 'A verified email is required to RSVP' }, { status: 400 });
     }
-    const verification = await verifyPrivyEmails(accessToken);
-    if (verification.configured) {
-      // Enforcement is active (PRIVY_APP_SECRET is set).
-      if (!verification.ok) {
-        return NextResponse.json({ error: 'Could not verify your email — please verify with Privy and try again' }, { status: 401 });
+    if (isGuest) {
+      if (!name?.trim() || name.trim().split(/\s+/).length < 2) {
+        return NextResponse.json({ error: 'Your full name is required to RSVP' }, { status: 400 });
       }
-      if (!verification.verifiedEmails.includes(email.trim().toLowerCase())) {
-        return NextResponse.json({ error: 'This email is not verified on your account' }, { status: 403 });
+      if (!isValidEmail(email.trim())) {
+        return NextResponse.json({ error: 'Please enter a valid email address' }, { status: 400 });
       }
     } else {
-      // PRIVY_APP_SECRET not configured — server-side verification is inactive.
-      // The client still gates on a verified email, but until the secret is set
-      // this check is advisory only. See lib/auth/privyServer.ts.
-      console.warn('[rsvp] PRIVY_APP_SECRET not set — email verification not enforced server-side');
+      // Authed path: the body's `email` is not trusted — we confirm it against
+      // Privy's record of this user's verified accounts.
+      const verification = await verifyPrivyEmails(accessToken);
+      if (verification.configured) {
+        if (!verification.ok) {
+          return NextResponse.json({ error: 'Could not verify your email — please verify with Privy and try again' }, { status: 401 });
+        }
+        if (!verification.verifiedEmails.includes(email.trim().toLowerCase())) {
+          return NextResponse.json({ error: 'This email is not verified on your account' }, { status: 403 });
+        }
+      } else {
+        console.warn('[rsvp] PRIVY_APP_SECRET not set — email verification not enforced server-side');
+      }
     }
     // Phone is optional, but if provided it must look like a real number.
     if (phone && phone.replace(/\D/g, '').length < 7) {
@@ -138,7 +149,9 @@ export async function POST(request: NextRequest) {
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     if (event.rsvpClosed) return NextResponse.json({ error: 'Registration is closed' }, { status: 403 });
 
-    const userId = await resolveOrCreateUser(privyId, { email, name, phone });
+    const userId = isGuest
+      ? await resolveOrCreateGuestByEmail({ email, name, phone })
+      : await resolveOrCreateUser(privyId!, { email, name, phone });
     if (!userId) return NextResponse.json({ error: 'Could not resolve user' }, { status: 500 });
 
     // Ticket-gated events: when every active tier is paid, admission goes
