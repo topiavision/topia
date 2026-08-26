@@ -170,8 +170,8 @@ export default function TopiansClient({ initialProfiles }: { initialProfiles: To
                     </h1>
                   </div>
                   <div className="flex flex-col items-start md:items-end gap-1">
-                    <span className="font-mono text-[12px] text-obsidian/80 leading-snug">every passport in the registry.</span>
-                    <span className="font-mono text-[12px] text-[var(--on-accent-muted)] leading-snug">building, shaping, moving through topia.</span>
+                    <span className="font-mono text-[12px] text-obsidian/80 leading-snug">every creator&apos;s passport — their profile here,</span>
+                    <span className="font-mono text-[12px] text-[var(--on-accent-muted)] leading-snug">stamped as they move through topia.</span>
                   </div>
                 </div>
               </div>

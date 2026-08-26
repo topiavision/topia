@@ -521,8 +521,8 @@ export default function WorldsPageClient({ initialWorlds }: { initialWorlds: Wor
               </div>
               <div className="p-4 flex items-center justify-between" style={{ backgroundColor: 'var(--surface)', borderLeft: '1px solid var(--border-color)' }}>
                 <div className="leading-snug">
-                  <span className="font-mono text-[13px] block" style={{ color: 'var(--foreground)' }}>every world is an ecosystem.</span>
-                  <span className="font-mono text-[13px] block opacity-70" style={{ color: 'var(--foreground)' }}>built by creators, for their communities.</span>
+                  <span className="font-mono text-[13px] block" style={{ color: 'var(--foreground)' }}>a world is a creator&apos;s scene — their projects, people, and plans.</span>
+                  <span className="font-mono text-[13px] block opacity-70" style={{ color: 'var(--foreground)' }}>step inside any of them; watch the ones you love.</span>
                 </div>
                 <div className="w-12 h-12 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--foreground) 8%, transparent)' }}>
                   <img src="/brand/logo-white.png" alt="" className="w-8 h-8 opacity-40 dark:opacity-40" style={{ filter: isDark ? 'none' : 'invert(1)' }} />

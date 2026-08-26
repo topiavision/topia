@@ -5,7 +5,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import LoadingBar from '../../../components/LoadingBar';
-import Tour, { type TourStep } from '../../../components/Tour';
+import Tour, { replayTour, type TourStep } from '../../../components/Tour';
 import { WorldAssistantDock } from '../../../components/builder/world/WorldAssistantDock';
 import { WorldData, ToolOption, PendingInvite, ProjectItem } from '../../_components/types';
 
@@ -222,6 +222,16 @@ export default function WorldDashboardLayout({
             >
               View ↗
             </a>
+            {isBuilder && (
+              <button
+                onClick={() => replayTour('world-hq')}
+                title="Replay the tour"
+                aria-label="Replay the tour"
+                className="font-mono text-[11px] uppercase tracking-[2px] border border-obsidian/25 text-obsidian/60 px-2.5 py-1.5 rounded-sm hover:text-obsidian transition cursor-pointer bg-transparent"
+              >
+                ?
+              </button>
+            )}
           </div>
         </div>
       </div>
