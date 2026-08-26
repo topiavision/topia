@@ -100,7 +100,7 @@ export function BuilderShell({ title, headerLink, onRequestClose, chat, canvas, 
       <div className="w-full border border-ink/10 rounded-2xl overflow-hidden bg-[var(--page-bg)]" style={{ boxShadow: `0 0 48px color-mix(in srgb, var(--orange) 8%, transparent)` }}>
         {/* Mobile: canvas band above chat, in flow — the browser handles the
             keyboard, the nav stays reachable. */}
-        <div className="sm:hidden flex flex-col" style={{ minHeight: 'calc(100dvh - var(--nav-height) - 24px)' }}>
+        <div className="sm:hidden flex flex-col" style={{ height: 'calc(100dvh - var(--mobile-nav-clearance, 104px) - 20px)' }}>
           {header}
           {(
           <>

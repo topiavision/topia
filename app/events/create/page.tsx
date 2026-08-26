@@ -50,7 +50,7 @@ export default function CreateEventPage() {
 
   if (mode === 'assistant') {
     return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-[calc(var(--nav-height)+16px)] pb-[var(--mobile-nav-clearance)] md:pb-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-3 md:pt-[calc(var(--nav-height)+16px)] pb-2 md:pb-8">
         <EventBuilder
           variant="page"
           showBack
