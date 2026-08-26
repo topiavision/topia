@@ -64,7 +64,7 @@ export default function WelcomeStep({ onAdvance, name }: Props) {
               style={{ opacity: 0, animation: 'fadeUp 0.7s ease forwards' }}
             >
               <div className="font-mono text-[11px] md:text-[13px] uppercase tracking-[2px] text-obsidian/60 max-w-md">
-                a few quick questions to set up your topia identity. takes 90 seconds.
+                a few quick questions to set up your topia identity. takes about a minute.
               </div>
               <button
                 onClick={onAdvance}

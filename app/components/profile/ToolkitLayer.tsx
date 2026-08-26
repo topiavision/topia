@@ -18,9 +18,11 @@ interface Props {
   tools: Tool[];
   /** Profile owner's handle — enables the "open stack" link to /stacks/[username]. */
   username?: string | null;
+  /** Viewer owns this profile — the empty state offers a door to profile settings. */
+  isOwnProfile?: boolean;
 }
 
-export default function ToolkitLayer({ config, tools, username }: Props) {
+export default function ToolkitLayer({ config, tools, username, isOwnProfile = false }: Props) {
   const [modalSlug, setModalSlug] = useState<string | null>(null);
 
   return (
@@ -38,8 +40,13 @@ export default function ToolkitLayer({ config, tools, username }: Props) {
       </div>
 
       {tools.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center p-8">
+        <div className="flex-1 flex flex-col items-center justify-center gap-2.5 p-8 text-center">
           <span className="font-mono text-[11px] uppercase tracking-[2px] text-ink/25">no tools declared yet</span>
+          {isOwnProfile && (
+            <Link href="/profile" className="font-mono text-[11px] text-[var(--accent-ink)] no-underline hover:underline">
+              add your stack from your profile settings →
+            </Link>
+          )}
         </div>
       ) : (
         <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">

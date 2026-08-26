@@ -110,8 +110,11 @@ export default function EventsLayer({ config, hosted, attended }: Props) {
 
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
         {rows.length === 0 ? (
-          <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center justify-center gap-2.5 py-12 text-center">
             <span className="font-mono text-[11px] text-ink/20 uppercase tracking-wider">No events yet</span>
+            <Link href="/events" className="font-mono text-[11px] text-[var(--accent-ink)] no-underline hover:underline">
+              browse what&apos;s on →
+            </Link>
           </div>
         ) : view === 'grid' ? (
           /* Gallery — wide cards that fill the panel height and scroll sideways */

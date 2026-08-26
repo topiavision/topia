@@ -153,7 +153,7 @@ export default function FrostedPill({ onMenuToggle, onOpenMessages, onOpenCard }
           style={{ backgroundColor: 'var(--lime, #e4fe52)', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.45)' }}
         >
           <Link href="/onboarding" className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] no-underline truncate" style={{ color: '#1a1a1a' }}>
-            ✦ Finish your passport — 60 seconds
+            ✦ Finish your profile — about a minute
           </Link>
           <button onClick={dismissPassport} aria-label="Dismiss" className="bg-transparent border-none cursor-pointer text-[15px] leading-none p-0 shrink-0" style={{ color: '#1a1a1a', opacity: 0.55 }}>×</button>
         </div>

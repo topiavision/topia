@@ -40,8 +40,11 @@ export default function WorldsLayer({ config, worlds, isOwnProfile = false, owne
       </div>
 
       {worlds.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex flex-col items-center justify-center gap-2.5 text-center">
           <span className="font-mono text-[11px] text-ink/20 uppercase tracking-wider">No worlds yet</span>
+          <Link href="/worlds" className="font-mono text-[11px] text-[var(--accent-ink)] no-underline hover:underline">
+            explore worlds →
+          </Link>
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-3 flex gap-3" style={{ scrollbarWidth: 'thin' }}>

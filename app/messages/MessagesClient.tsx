@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import Thread, { Avatar, type OtherUser } from './Thread';
 import LoginWall from '../components/LoginWall';
@@ -39,6 +40,9 @@ interface MessagesClientProps {
 export default function MessagesClient({ initialConversationId = null }: MessagesClientProps) {
   const { authenticated, user, ready } = usePrivy();
   const [inbox, setInbox] = useState<Inbox>({ primary: [], requests: [], requestCount: 0, unreadTotal: 0 });
+  // First-fetch sentinel — without it the "no conversations yet" empty copy
+  // flashes while the initial inbox request is still in flight.
+  const [inboxLoaded, setInboxLoaded] = useState(false);
   const [tab, setTab] = useState<'primary' | 'requests'>('primary');
   const [selected, setSelected] = useState<string | null>(initialConversationId);
   const [selectedOther, setSelectedOther] = useState<OtherUser | null>(null);
@@ -48,7 +52,7 @@ export default function MessagesClient({ initialConversationId = null }: Message
     if (!authenticated || !user) return;
     fetch(`/api/messages/conversations?privyId=${encodeURIComponent(user.id)}`)
       .then((r) => r.json())
-      .then((data: Inbox) => setInbox(data))
+      .then((data: Inbox) => { setInbox(data); setInboxLoaded(true); })
       .catch(() => {});
   }, [authenticated, user]);
 
@@ -151,9 +155,22 @@ export default function MessagesClient({ initialConversationId = null }: Message
           {composing ? (
             <ComposeSearch privyId={user?.id ?? ''} onPick={startChat} />
           ) : list.length === 0 ? (
-            <p className="font-mono text-[11px] uppercase tracking-[2px] text-ink/30 text-center mt-10 px-4">
-              {tab === 'primary' ? 'no conversations yet' : 'no requests'}
-            </p>
+            !inboxLoaded ? (
+              <p className="font-mono text-[11px] uppercase tracking-[2px] text-ink/30 text-center mt-10 px-4">loading…</p>
+            ) : tab === 'primary' ? (
+              <div className="text-center mt-10 px-4">
+                <p className="font-mono text-[11px] uppercase tracking-[2px] text-ink/30 m-0">no conversations yet</p>
+                <p className="font-mono text-[11px] mt-3 m-0">
+                  <Link href="/topians" className="text-[var(--accent-ink)] no-underline hover:underline">find someone on Topians →</Link>
+                </p>
+                <p className="font-mono text-[10px] text-ink/35 mt-1.5 m-0">or start one with the ✎ button above</p>
+              </div>
+            ) : (
+              <div className="text-center mt-10 px-4">
+                <p className="font-mono text-[11px] uppercase tracking-[2px] text-ink/30 m-0">no requests</p>
+                <p className="font-mono text-[10px] text-ink/35 mt-2 m-0">messages from people you&apos;re not connected with land here.</p>
+              </div>
+            )
           ) : (
             list.map((item) => <Row key={item.conversationId} item={item} />)
           )}

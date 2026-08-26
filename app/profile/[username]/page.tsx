@@ -33,7 +33,7 @@ const PROFILE_TOUR: TourStep[] = [
   { target: 'tour-prof-tab-events', title: 'Where you’ve shown up', body: 'Every event you host or attend collects here — and going to one is how most stamps get earned.', place: 'below' },
   { target: 'tour-prof-tab-inprocess', title: 'Your story in motion', body: 'The build-in-public timeline, but for you: life chapters you set yourself, plus the roadmaps of every world you build — all in one place.', place: 'below' },
   { target: 'tour-prof-tab-toolkit', title: 'What you build with', body: 'The tools behind your work — pull them from Topia’s tools directory so other creators can see your stack and discover new ones through you.', place: 'below' },
-  { target: 'tour-prof-edit', title: 'Finish the picture', body: 'Edit is where your photo, declaration, and links live — plus notifications and “Sign in with In•Process” for onchain minting. That’s the tour — go get stamped. ✦', place: 'below', nextLabel: 'Done' },
+  { target: 'tour-prof-edit', title: 'Finish the picture', body: 'Edit is where your photo, declaration, and links live — plus notifications and “Sign in with In•Process” for onchain minting. That’s the tour — go get stamped.', place: 'below', nextLabel: 'Done' },
 ];
 
 interface PublicProfile {
@@ -281,7 +281,7 @@ export default function PublicProfilePage() {
     switch (activeSection) {
       case 'events':    return <EventsLayer config={config} hosted={hostedEvents} attended={attendedEvents} />;
       case 'worlds':    return <WorldsLayer config={config} isWorldBuilder={path === 'worldbuilder'} worlds={sortedWorlds} isOwnProfile={isOwnProfile} ownerName={profile?.username ? `@${profile.username}` : (profile?.name || '')} />;
-      case 'toolkit':   return <ToolkitLayer config={config} tools={tools} username={profile?.username ?? username} />;
+      case 'toolkit':   return <ToolkitLayer config={config} tools={tools} username={profile?.username ?? username} isOwnProfile={isOwnProfile} />;
       case 'inprocess': return (
         <>
           <ProfileInProcessLayer chapters={lifeChapters} worldEras={profileEras} isOwnProfile={isOwnProfile} onChanged={loadInProcess} />
