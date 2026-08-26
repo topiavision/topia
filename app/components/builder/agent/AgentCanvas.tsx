@@ -14,7 +14,7 @@ export interface ResultItem { title: string; subtitle: string | null; imageUrl: 
 
 export type AgentView =
   | { view: 'capabilities' }
-  | { view: 'results'; entity: AgentEntity; query: string; items: ResultItem[] }
+  | { view: 'results'; entity: AgentEntity; query: string; items: ResultItem[]; suggestions?: { label: string; seed: string }[] }
   | { view: 'routing'; title: string; blurb: string };
 
 const ENTITY_GLYPH: Record<AgentEntity, string> = {
@@ -23,8 +23,17 @@ const ENTITY_GLYPH: Record<AgentEntity, string> = {
 const ENTITY_LABEL: Record<AgentEntity, string> = {
   people: 'Creators', tools: 'Tools', worlds: 'Worlds', events: 'Events', grants: 'Grants', projects: 'Projects',
 };
+/** Where "browse everything" lives, per entity — empty results always offer a real door. */
+export const ENTITY_BROWSE: Record<AgentEntity, { href: string; label: string }> = {
+  people: { href: '/topians', label: 'Browse all Topians' },
+  tools: { href: '/resources/tools', label: 'Browse the tools directory' },
+  worlds: { href: '/worlds', label: 'Browse all worlds' },
+  events: { href: '/events', label: 'Browse all events' },
+  grants: { href: '/resources/grants', label: 'Browse all grants' },
+  projects: { href: '/worlds', label: 'Browse worlds & projects' },
+};
 
-export function AgentCanvas({ state }: { state: AgentView }) {
+export function AgentCanvas({ state, onSuggest }: { state: AgentView; onSuggest?: (seed: string) => void }) {
   if (state.view === 'routing') {
     return (
       <div className="ipb-canvas-bg min-h-full flex items-center justify-center p-8">
@@ -44,7 +53,31 @@ export function AgentCanvas({ state }: { state: AgentView }) {
           {ENTITY_LABEL[state.entity]}{state.query ? ` · “${state.query}”` : ''}
         </p>
         {state.items.length === 0 ? (
-          <p className="font-mono text-[12px] text-ink/45">Nothing yet — try different words, or browse the directory instead.</p>
+          <div className="ipb-enter flex flex-col items-start gap-4">
+            <p className="font-mono text-[12px] text-ink/45">Nothing in the directory for that yet.</p>
+            {state.suggestions && state.suggestions.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="font-mono text-[10px] uppercase tracking-[2px] text-ink/40">What&apos;s actually here — tap one</p>
+                <div className="flex flex-wrap gap-2">
+                  {state.suggestions.map((sug) => (
+                    <button
+                      key={sug.label}
+                      onClick={() => onSuggest?.(sug.seed)}
+                      className="font-mono text-[11px] px-3 py-1.5 rounded-full border border-ink/20 text-ink/75 bg-transparent cursor-pointer hover:border-[var(--orange,#FF5C34)] hover:text-ink transition-colors"
+                    >
+                      {sug.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <Link
+              href={ENTITY_BROWSE[state.entity].href}
+              className="font-mono text-[11px] font-bold uppercase tracking-[1px] no-underline rounded-md px-3.5 py-2 bg-lime text-obsidian"
+            >
+              {ENTITY_BROWSE[state.entity].label} ↗
+            </Link>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {state.items.map((item, i) => (
