@@ -383,7 +383,7 @@ export default function ProfilePage() {
                 href={`/profile/${username}`}
                 className="font-mono text-[11px] text-ink/60 hover:text-[var(--accent-ink)] no-underline transition truncate"
               >
-                topia.so/profile/@{username}
+                topia.vision/profile/{username}
               </Link>
             </div>
           )}
