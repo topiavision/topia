@@ -46,8 +46,8 @@ function secondaryNudge(): string {
                 <tr>
                   <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;">
                     <div style="padding-bottom:8px;">${hl('Finish setup')}</div>
-                    <div style="font-size:14px;line-height:1.5;color:#888888;padding-bottom:14px;">You're in. Claim your TOPIA passport — just pick a username and add a profile photo. It's how you show up across the network, and you can change it anytime.</div>
-                    <a href="{{{PROFILE_URL}}}" target="_blank" style="display:inline-block;padding:11px 22px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:inherit;text-decoration:none;border:1px solid rgba(136,136,136,0.45);border-radius:8px;">Claim your passport &rarr;</a>
+                    <div style="font-size:14px;line-height:1.5;color:#888888;padding-bottom:14px;">You're in. Claim your Topia profile — pick a username and add a photo. It's how you show up across the network, and your passport starts collecting stamps from here.</div>
+                    <a href="{{{PROFILE_URL}}}" target="_blank" style="display:inline-block;padding:11px 22px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:inherit;text-decoration:none;border:1px solid rgba(136,136,136,0.45);border-radius:8px;">Claim your profile &rarr;</a>
                   </td>
                 </tr>
               </table>

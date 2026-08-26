@@ -111,7 +111,7 @@ export async function fulfillOrder(
           .select({ eventName: events.eventName, slug: events.slug })
           .from(events)
           .where(eq(events.id, result.order.eventId)),
-        db.select({ name: users.name }).from(users).where(eq(users.id, result.order.buyerId)),
+        db.select({ name: users.name, privyId: users.privyId }).from(users).where(eq(users.id, result.order.buyerId)),
       ]);
       if (ev) {
         await sendTicketConfirmation({
@@ -120,6 +120,7 @@ export async function fulfillOrder(
           slug: ev.slug,
           eventName: ev.eventName,
           guestName: buyer?.name,
+          guest: !buyer?.privyId,
           ticketCount: result.ticketCount,
           totalCents: result.order.amountCents,
         });
