@@ -234,7 +234,7 @@ er = applyCommand(hydrated, parseUtterance('call it Season Two', NOW), NOW);
 check('era title → era-put', diffToPatches(hydrated, er.draft), [{ kind: 'era-put', body: { title: 'Season Two' } }]);
 
 // Pin one date, then re-flow: pinned survives, others move, era dates move.
-let pinned = applyCommand(hydrated, { kind: 'set_milestone_date', ref: { title: 'Launch' }, start: { value: '2027-04-01', precision: 'day' }, end: null }, NOW);
+const pinned = applyCommand(hydrated, { kind: 'set_milestone_date', ref: { title: 'Launch' }, start: { value: '2027-04-01', precision: 'day' }, end: null }, NOW);
 er = applyCommand(pinned.draft, parseUtterance('finish by December 2027', NOW), NOW);
 const flow = diffToPatches(pinned.draft, er.draft);
 check('re-flow: era-put present', flow.some((p) => p.kind === 'era-put'), true);
