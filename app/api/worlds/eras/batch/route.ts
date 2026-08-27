@@ -80,6 +80,9 @@ export async function POST(request: Request) {
       if (!m.title) return NextResponse.json({ error: 'Every milestone needs a title' }, { status: 400 });
       if (!MILESTONE_STATUSES.has(m.status)) return NextResponse.json({ error: 'Milestone status must be done, now, upcoming, or paused' }, { status: 400 });
     }
+    if (cleanMs.filter((m) => m.status === 'now').length > 1) {
+      return NextResponse.json({ error: 'A roadmap can only have one milestone in motion' }, { status: 400 });
+    }
 
     const userId = await verifyWorldBuilder(privyId, worldId);
     if (!userId) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });

@@ -76,7 +76,7 @@ export default function CreateWorldPage() {
         setError(data.error || 'Failed to create world');
         return;
       }
-      router.push(`/dashboard/worlds/${data.world.slug}`);
+      router.push(`/dashboard/worlds/${data.world.slug}/in-process`);
     } catch {
       setError('Failed to create world');
     } finally {

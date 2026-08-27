@@ -1,6 +1,6 @@
 'use client';
 
-/* What a backer sees on the way back from Stripe.
+/* What a patron sees on the way back from Stripe.
  *
  * The webhook is authoritative but can lag a second or two, so this polls the
  * status endpoint rather than trusting the redirect — the same self-healing
@@ -68,7 +68,7 @@ export function FundingReturn({ onCredited }: {
         }
       } catch { /* keep polling */ }
       // ~20s of polling, then stop pretending we know. The webhook will still
-      // land; the backer just isn't kept staring at a spinner.
+      // land; the patron just isn't kept staring at a spinner.
       if (tries >= 13) { setPhase('slow'); return; }
       setTimeout(tick, 1500);
     };
@@ -90,7 +90,7 @@ export function FundingReturn({ onCredited }: {
         }}
       >
         <p className="font-mono text-[12.5px] leading-relaxed" style={{ color: 'var(--accent-ink)' }}>
-          <span className="font-bold">Thank you — {usd(amountCents)} backed{title ? ` ${title}` : ''}.</span>
+          <span className="font-bold">Thank you — {usd(amountCents)} funded{title ? ` ${title}` : ''}.</span>
           <span className="text-ink/60"> Your receipt is on its way.</span>
         </p>
         <button onClick={() => setDismissed(true)} aria-label="Dismiss" className="bg-transparent border-none cursor-pointer text-[16px] leading-none p-0 text-ink/40">×</button>

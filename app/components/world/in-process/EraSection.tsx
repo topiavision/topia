@@ -17,7 +17,7 @@ import { totalRaisedCents, type FundingGoalView, type GoalMap } from './funding/
 /* ── One era: the spine (identity + vertical milestone rail) on the
  * left, the living log (NOW unit + feed) on the right. Mobile stacks
  * era → happening-now → rail → log, per the approved redesign. ────── */
-export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit, canMint, onChanged, hideProjectChip, tourAnchor, goals, canFund, acceptingSupport, payeeMissing, worldTitle, accessToken, onGoalsChanged }: {
+export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit, canMint, onChanged, hideProjectChip, tourAnchor, goals, canFund, acceptingSupport, payeeMissing, worldTitle, accessToken, onGoalsChanged, orientation = 'horizontal' }: {
   era: EraView; worldId: string; worldSlug: string; projects: ProjectOption[]; privyId: string;
   canEdit: boolean; canMint: boolean; onChanged: () => void; hideProjectChip?: boolean;
   /** Funding goals for this world, keyed by the id of what they fund. Empty
@@ -32,6 +32,9 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
   worldTitle?: string;
   accessToken?: string | null;
   onGoalsChanged?: () => void;
+  /** Desktop defaults to a horizontal roadmap. Mobile always uses the stacked
+   *  rail, regardless of this preference. */
+  orientation?: 'horizontal' | 'vertical';
   /** First rendered era carries the walkthrough's spotlight anchors. */
   tourAnchor?: boolean;
 }) {
@@ -42,6 +45,7 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
 
   // Exactly ONE milestone reads as "now" — the first. Later rows that also
   // carry the status keep their orange word without the shouting box.
+  const nowMilestones = era.milestones.filter((m) => m.status === 'now');
   const nowIndex = era.milestones.findIndex((m) => m.status === 'now');
   const lastDone = era.milestones.reduce((acc, m, i) => (m.status === 'done' ? i : acc), -1);
   const litThrough = nowIndex >= 0 ? nowIndex : lastDone; // connector lights up to here
@@ -109,6 +113,15 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
         <div className="mt-3">
           <EraForm worldId={worldId} projects={projects} existing={era} privyId={privyId}
             onClose={() => setEditingEra(false)} onChanged={onChanged} />
+        </div>
+      )}
+
+      {canEdit && nowMilestones.length > 1 && (
+        <div className="mt-3 rounded-lg border border-orange/35 bg-orange/[0.04] px-3.5 py-3" role="alert">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[1.5px] text-orange">Choose one current milestone</p>
+          <p className="font-mono text-[11px] leading-relaxed text-ink/55 mt-1">
+            {nowMilestones.length} milestones are marked Now. Edit the real current milestone and save it as “In motion (now)” to clean up the roadmap.
+          </p>
         </div>
       )}
 
@@ -225,11 +238,69 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
     </div>
   );
 
+  const horizontalRail = (
+    <div id={tourAnchor ? 'tour-ip-timeline-horizontal' : undefined} className="overflow-x-auto max-w-full pb-2" style={{ scrollbarWidth: 'thin' }}>
+      <div className="flex min-w-max pt-1">
+        {era.milestones.map((m, i) => {
+          const isTheNow = i === nowIndex;
+          const nodeState = m.status === 'done' ? 'done' : m.status === 'now' ? 'now' : 'future';
+          const isSelected = selectedMsId === m.id;
+          const count = updateCount(m.id);
+          const range = eraDateRange(m) ?? m.dateLabel;
+          const fuzzy = range && (m.status === 'upcoming' || m.status === 'paused') ? `~${range}` : range;
+          const dim = m.status === 'done' || m.status === 'paused';
+          return (
+            <div key={m.id} className="w-[230px] shrink-0 pr-4 last:pr-0">
+              <div className="h-5 flex items-center">
+                <Node state={nodeState} />
+                {i < era.milestones.length - 1 && (
+                  <span className="h-[2px] flex-1 ml-2" style={{ backgroundColor: i < litThrough ? ORANGE : 'color-mix(in srgb, var(--page-text) 14%, transparent)' }} />
+                )}
+              </div>
+              <button
+                onClick={() => openMilestone(m.id)}
+                aria-pressed={isSelected}
+                className={`mt-2 w-full min-h-[112px] text-left rounded-lg px-3 py-3 cursor-pointer transition-colors ${isTheNow || isSelected ? 'border-2' : 'border border-ink/[0.1] bg-transparent hover:border-ink/30'} ${dim && !isSelected ? 'opacity-60' : ''}`}
+                style={isTheNow || isSelected ? { borderColor: ORANGE, backgroundColor: orangeMix(isSelected ? 10 : 7) } : undefined}
+              >
+                <p className="font-mono text-[9px] font-bold uppercase tracking-[2px]" style={{ color: m.status === 'done' || m.status === 'now' ? ORANGE : 'color-mix(in srgb, var(--page-text) 42%, transparent)' }}>M{String(i + 1).padStart(2, '0')} · {STATUS_META[m.status] ?? m.status.toUpperCase()}</p>
+                <p className="font-mono text-[13px] font-bold text-ink leading-tight mt-2 line-clamp-2">{m.title}</p>
+                <p className="font-mono text-[10px] uppercase tracking-[1px] text-ink/40 mt-2">{fuzzy}{fuzzy && count > 0 && ' · '}{count > 0 && <>{count} update{count === 1 ? '' : 's'}</>}</p>
+              </button>
+            </div>
+          );
+        })}
+        {canEdit && (
+          <div className="w-[190px] shrink-0 pt-7">
+            <button onClick={() => setMilestoneModal({})} className="w-full min-h-[112px] rounded-lg border border-dashed border-ink/20 px-4 py-3 bg-transparent cursor-pointer font-mono text-[10px] uppercase tracking-[1px] text-ink/45 hover:border-ink/40 hover:text-ink/70 transition">+ Milestone</button>
+          </div>
+        )}
+      </div>
+      {selectedMs && (
+        <div className="mt-4 max-w-2xl">
+          <MilestoneDetail
+            goal={goals?.get(selectedMs.id)}
+            acceptingSupport={acceptingSupport}
+            worldTitle={worldTitle}
+            privyId={privyId}
+            m={selectedMs}
+            index={selectedIndex}
+            updateCount={updateCount(selectedMs.id)}
+            canEdit={canEdit}
+            onEdit={() => setMilestoneModal({ existing: selectedMs })}
+            onClose={() => setSelectedMsId(null)}
+          />
+        </div>
+      )}
+      {era.milestones.length === 0 && !canEdit && <p className="font-mono text-[11px] text-ink/35 py-4">No milestones yet.</p>}
+    </div>
+  );
+
   const supportLine = (raisedTotal > 0 || (!hideProjectChip && era.projectSlug)) && (
     <div className="mt-5 pt-4 border-t border-ink/[0.08] flex flex-col gap-2 items-start">
       {raisedTotal > 0 && (
         <p className="font-mono text-[11px] text-ink/60">
-          {usd(raisedTotal)} raised across this roadmap{backerTotal > 0 && <> · {backerTotal} backer{backerTotal === 1 ? '' : 's'}</>}
+          {usd(raisedTotal)} raised across this roadmap{backerTotal > 0 && <> · {backerTotal} patron{backerTotal === 1 ? '' : 's'}</>}
         </p>
       )}
       {!hideProjectChip && era.projectSlug && (
@@ -247,21 +318,22 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
   /* ── layout ───────────────────────────────────────────────────────── */
 
   return (
-    <div className="lg:grid lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:gap-9 lg:items-start">
+    <div className={orientation === 'horizontal' ? 'block' : 'lg:grid lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:gap-9 lg:items-start'}>
       {/* THE SPINE */}
       <div className="min-w-0">
         {eraIdentity}
         {/* Mobile leads with liveness — the NOW unit sits between the era
             header and the rail; on lg it lives atop the log column. */}
         {nowUnit && <div className="lg:hidden mt-5">{nowUnit}</div>}
-        <div className="mt-6">{rail}</div>
+        <div className={`mt-6 ${orientation === 'horizontal' ? 'lg:hidden' : ''}`}>{rail}</div>
+        {orientation === 'horizontal' && <div className="hidden lg:block mt-6">{horizontalRail}</div>}
         {supportLine}
       </div>
 
       {/* THE LIVING LOG */}
-      <div className="min-w-0 mt-8 lg:mt-0">
+      <div className={`min-w-0 mt-8 ${orientation === 'horizontal' ? 'lg:grid lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)] lg:gap-5 lg:items-start' : 'lg:mt-0'}`}>
         {nowUnit && <div className="hidden lg:block">{nowUnit}</div>}
-        <div id={tourAnchor ? 'tour-ip-log' : undefined} className={nowUnit ? 'mt-6' : ''}>
+        <div id={tourAnchor ? 'tour-ip-log' : undefined} className={orientation === 'horizontal' ? '' : nowUnit ? 'mt-6' : ''}>
           <ProcessLog
             era={era}
             privyId={privyId}
@@ -286,6 +358,7 @@ export function EraSection({ era, worldId, worldSlug, projects, privyId, canEdit
 
       {milestoneModal && (
         <MilestoneModal
+          milestones={era.milestones}
           goal={milestoneModal.existing ? goals?.get(milestoneModal.existing.id) : undefined}
           canFund={canFund}
           accessToken={accessToken}

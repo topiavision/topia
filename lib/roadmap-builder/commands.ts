@@ -301,7 +301,9 @@ export function applyCommand(draft: DraftRoadmap, cmd: BuilderCommand, now: Date
       // Only one milestone is "now" at a time — the ring means something.
       const milestones = draft.milestones.map((m, i) => {
         if (i === r.index) return { ...m, status: cmd.status };
-        if (cmd.status === 'now' && m.status === 'now') return { ...m, status: 'upcoming' as MilestoneStatus };
+        if (cmd.status === 'now' && m.status === 'now') {
+          return { ...m, status: (i < r.index ? 'done' : 'upcoming') as MilestoneStatus };
+        }
         return m;
       });
       const word = { done: 'done ✓', now: 'in motion', upcoming: 'upcoming', paused: 'paused' }[cmd.status];

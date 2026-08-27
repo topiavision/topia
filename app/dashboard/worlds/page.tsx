@@ -133,7 +133,7 @@ function DashboardWorldsInner() {
                 className={`border border-ink/[0.08] rounded-lg overflow-hidden bg-[var(--page-bg)] ${!published ? 'opacity-80' : ''}`}
               >
                 {/* Cover — clicks through to manage */}
-                <Link href={`/dashboard/worlds/${wm.worldSlug}`} className="block aspect-video overflow-hidden bg-ink/[0.04] no-underline">
+                <Link href={`/dashboard/worlds/${wm.worldSlug}/in-process`} className="block aspect-video overflow-hidden bg-ink/[0.04] no-underline">
                   {wm.worldImageUrl && (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={wm.worldImageUrl} alt={wm.worldTitle} className="w-full h-full object-cover" style={{ objectPosition: 'center 35%' }} />
@@ -151,13 +151,13 @@ function DashboardWorldsInner() {
                         </span>
                       )}
                       <span className="font-mono text-[9px] uppercase tracking-[2px] text-ink/30">
-                        {wm.role === 'owner' ? 'Owner' : wm.role === 'world_builder' ? 'Builder' : 'Collab'}
+                        {wm.role === 'owner' ? 'Lead' : wm.role === 'world_builder' ? 'Builder' : 'Collaborator'}
                       </span>
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap mt-3">
                     <Link
-                      href={`/dashboard/worlds/${wm.worldSlug}`}
+                      href={`/dashboard/worlds/${wm.worldSlug}/in-process`}
                       className="font-mono text-[10px] uppercase tracking-[1px] bg-lime text-obsidian font-bold px-2.5 py-1 rounded-sm hover:opacity-90 transition no-underline"
                     >
                       Manage

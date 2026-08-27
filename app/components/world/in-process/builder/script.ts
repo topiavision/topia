@@ -48,7 +48,7 @@ export const EDIT_TILES = [
   { glyph: '✓', title: 'Mark a milestone done', sub: 'pick one, it saves instantly', seed: 'mark one done' },
   { glyph: '+', title: 'Add a milestone', sub: '“vinyl drop in March”', seed: 'add a milestone' },
   { glyph: '↔', title: 'Change the timeline', sub: '“finish by December” re-flows the dates', seed: 'change the timeline' },
-  { glyph: '$', title: 'Fund a milestone', sub: 'set a goal backers can support', seed: 'fund a milestone' },
+  { glyph: '$', title: 'Fund a milestone', sub: 'set a goal patrons can support', seed: 'fund a milestone' },
 ];
 
 export const CHIP = {

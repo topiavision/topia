@@ -47,11 +47,11 @@ export default function DashboardSidebar() {
   }
 
   const worldSubItems = (slug: string) => [
-    { label: 'Overview', href: `/dashboard/worlds/${slug}` },
-    { label: 'Details', href: `/dashboard/worlds/${slug}/details`, tourId: 'tour-hq-details' },
+    { label: 'Now', href: `/dashboard/worlds/${slug}/in-process`, tourId: 'tour-hq-now' },
     { label: 'Projects', href: `/dashboard/worlds/${slug}/projects`, tourId: 'tour-hq-projects' },
-    { label: 'In Process', href: `/dashboard/worlds/${slug}/in-process`, tourId: 'tour-hq-inprocess' },
-    { label: 'Members', href: `/dashboard/worlds/${slug}/members`, tourId: 'tour-hq-members' },
+    { label: 'Patrons', href: `/dashboard/worlds/${slug}/patrons`, tourId: 'tour-hq-patrons' },
+    { label: 'Builders', href: `/dashboard/worlds/${slug}/members`, tourId: 'tour-hq-builders' },
+    { label: 'About', href: `/dashboard/worlds/${slug}/details`, tourId: 'tour-hq-about' },
   ];
 
   const personalItems = [
@@ -127,7 +127,7 @@ export default function DashboardSidebar() {
               {sortedWorlds.map((w) => (
                 <Link
                   key={w.worldId}
-                  href={`/dashboard/worlds/${w.worldSlug}`}
+                  href={`/dashboard/worlds/${w.worldSlug}/in-process`}
                   onClick={() => setSwitcherOpen(false)}
                   className={`flex items-center gap-2 px-3 py-1.5 transition no-underline ${currentWorldSlug === w.worldSlug ? 'bg-ink/[0.06]' : 'hover:bg-ink/[0.03]'}`}
                 >
@@ -141,7 +141,7 @@ export default function DashboardSidebar() {
                   )}
                   <span className="font-mono text-[11px] uppercase tracking-wider flex-1 truncate text-ink">{w.worldTitle}</span>
                   <span className="font-mono text-[9px] uppercase tracking-wider text-ink/30 shrink-0">
-                    {w.role === 'owner' ? 'OWN' : w.role === 'world_builder' ? 'BLD' : 'COL'}
+                    {w.role === 'owner' ? 'LEAD' : w.role === 'world_builder' ? 'BUILD' : 'COLLAB'}
                   </span>
                   {currentWorldSlug === w.worldSlug && <span className="w-1.5 h-1.5 rounded-full bg-lime shrink-0" />}
                 </Link>
@@ -360,9 +360,14 @@ export default function DashboardSidebar() {
         )}
 
         {currentWorld && (
-          <span className="shrink-0 font-mono text-[11px] font-bold uppercase tracking-wider px-1 truncate max-w-[96px] text-ink/50">
-            {currentWorld.worldTitle}
-          </span>
+          currentWorld.worldImageUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={currentWorld.worldImageUrl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 border border-ink/10" />
+          ) : (
+            <span className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center font-basement text-[11px] bg-lime text-obsidian">
+              {currentWorld.worldTitle[0]?.toUpperCase()}
+            </span>
+          )
         )}
 
         {/* Tab items */}
@@ -386,7 +391,7 @@ export default function DashboardSidebar() {
             {sortedWorlds.map((w) => (
               <Link
                 key={w.worldId}
-                href={`/dashboard/worlds/${w.worldSlug}`}
+                href={`/dashboard/worlds/${w.worldSlug}/in-process`}
                 aria-label={w.worldTitle}
                 title={w.worldTitle}
                 className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center no-underline hover:bg-ink/[0.05] transition-colors"

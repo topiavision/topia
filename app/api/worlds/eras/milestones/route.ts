@@ -39,21 +39,42 @@ export async function POST(request: Request) {
     const auth = await authorizeEra(privyId, eraId);
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-    const [milestone] = await db.insert(eraMilestones).values({
-      eraId,
-      title: String(title).trim(),
-      description: description ? String(description).trim() : null,
-      // The multi-line 'full picture'; description above stays the one-liner.
-      details: details ? String(details).trim().slice(0, 4000) : null,
-      startDate: cleanDate(startDate) ?? null,
-      endDate: cleanDate(endDate) ?? null,
-      startPrecision: cleanPrecision(startPrecision) ?? null,
-      endPrecision: cleanPrecision(endPrecision) ?? null,
-      dateLabel: dateLabel ? String(dateLabel).trim() : null,
-      status: cleanStatus,
-      imageUrl: imageUrl ? String(imageUrl) : null,
-      sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0,
-    }).returning();
+    const cleanSortOrder = Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0;
+    const [milestone] = await db.transaction(async (tx) => {
+      // "Now" is a position, not a tag. Moving the ring forward completes a
+      // former current milestone; moving it backward returns the later one to
+      // upcoming. This also repairs legacy duplicate-NOW rows on the next save.
+      if (cleanStatus === 'now') {
+        const current = await tx.select({ id: eraMilestones.id, sortOrder: eraMilestones.sortOrder })
+          .from(eraMilestones)
+          .where(and(eq(eraMilestones.eraId, eraId), eq(eraMilestones.status, 'now')));
+        const doneIds = current.filter((row) => (row.sortOrder ?? 0) < cleanSortOrder).map((row) => row.id);
+        const upcomingIds = current.filter((row) => (row.sortOrder ?? 0) >= cleanSortOrder).map((row) => row.id);
+        if (doneIds.length > 0) {
+          await tx.update(eraMilestones).set({ status: 'done', updatedAt: new Date() })
+            .where(inArray(eraMilestones.id, doneIds));
+        }
+        if (upcomingIds.length > 0) {
+          await tx.update(eraMilestones).set({ status: 'upcoming', updatedAt: new Date() })
+            .where(inArray(eraMilestones.id, upcomingIds));
+        }
+      }
+      return tx.insert(eraMilestones).values({
+        eraId,
+        title: String(title).trim(),
+        description: description ? String(description).trim() : null,
+        // The multi-line 'full picture'; description above stays the one-liner.
+        details: details ? String(details).trim().slice(0, 4000) : null,
+        startDate: cleanDate(startDate) ?? null,
+        endDate: cleanDate(endDate) ?? null,
+        startPrecision: cleanPrecision(startPrecision) ?? null,
+        endPrecision: cleanPrecision(endPrecision) ?? null,
+        dateLabel: dateLabel ? String(dateLabel).trim() : null,
+        status: cleanStatus,
+        imageUrl: imageUrl ? String(imageUrl) : null,
+        sortOrder: cleanSortOrder,
+      }).returning();
+    });
     const { goalCents: _g, raisedCents: _r, ...safe } = milestone;
     return NextResponse.json({ milestone: safe }, { headers: NO_STORE });
   } catch (error) {
@@ -68,7 +89,7 @@ export async function PUT(request: Request) {
     const { privyId, milestoneId, details, ...fields } = await request.json();
     if (!privyId || !milestoneId) return NextResponse.json({ error: 'milestoneId is required' }, { status: 400 });
 
-    const [existing] = await db.select({ eraId: eraMilestones.eraId }).from(eraMilestones)
+    const [existing] = await db.select({ eraId: eraMilestones.eraId, sortOrder: eraMilestones.sortOrder }).from(eraMilestones)
       .where(eq(eraMilestones.id, milestoneId)).limit(1);
     if (!existing) return NextResponse.json({ error: 'Milestone not found' }, { status: 404 });
 
@@ -83,20 +104,41 @@ export async function PUT(request: Request) {
     const endDate = cleanDate(fields.endDate);
     const startPrecision = cleanPrecision(fields.startPrecision);
     const endPrecision = cleanPrecision(fields.endPrecision);
-    await db.update(eraMilestones).set({
-      ...(fields.title !== undefined ? { title: String(fields.title).trim() } : {}),
-      ...(fields.description !== undefined ? { description: fields.description ? String(fields.description).trim() : null } : {}),
-      ...(details !== undefined ? { details: details ? String(details).trim().slice(0, 4000) : null } : {}),
-      ...(startDate !== undefined ? { startDate } : {}),
-      ...(endDate !== undefined ? { endDate } : {}),
-      ...(startPrecision !== undefined ? { startPrecision } : {}),
-      ...(endPrecision !== undefined ? { endPrecision } : {}),
-      ...(fields.dateLabel !== undefined ? { dateLabel: fields.dateLabel ? String(fields.dateLabel).trim() : null } : {}),
-      ...(fields.status !== undefined ? { status: String(fields.status) } : {}),
-      ...(fields.imageUrl !== undefined ? { imageUrl: fields.imageUrl ? String(fields.imageUrl) : null } : {}),
-      ...(fields.sortOrder !== undefined ? { sortOrder: Number(fields.sortOrder) } : {}),
-      updatedAt: new Date(),
-    }).where(eq(eraMilestones.id, milestoneId));
+    const nextSortOrder = fields.sortOrder !== undefined && Number.isFinite(Number(fields.sortOrder))
+      ? Number(fields.sortOrder)
+      : (existing.sortOrder ?? 0);
+    await db.transaction(async (tx) => {
+      if (fields.status !== undefined && String(fields.status) === 'now') {
+        const current = await tx.select({ id: eraMilestones.id, sortOrder: eraMilestones.sortOrder })
+          .from(eraMilestones)
+          .where(and(eq(eraMilestones.eraId, existing.eraId), eq(eraMilestones.status, 'now')));
+        const siblings = current.filter((row) => row.id !== milestoneId);
+        const doneIds = siblings.filter((row) => (row.sortOrder ?? 0) < nextSortOrder).map((row) => row.id);
+        const upcomingIds = siblings.filter((row) => (row.sortOrder ?? 0) >= nextSortOrder).map((row) => row.id);
+        if (doneIds.length > 0) {
+          await tx.update(eraMilestones).set({ status: 'done', updatedAt: new Date() })
+            .where(inArray(eraMilestones.id, doneIds));
+        }
+        if (upcomingIds.length > 0) {
+          await tx.update(eraMilestones).set({ status: 'upcoming', updatedAt: new Date() })
+            .where(inArray(eraMilestones.id, upcomingIds));
+        }
+      }
+      await tx.update(eraMilestones).set({
+        ...(fields.title !== undefined ? { title: String(fields.title).trim() } : {}),
+        ...(fields.description !== undefined ? { description: fields.description ? String(fields.description).trim() : null } : {}),
+        ...(details !== undefined ? { details: details ? String(details).trim().slice(0, 4000) : null } : {}),
+        ...(startDate !== undefined ? { startDate } : {}),
+        ...(endDate !== undefined ? { endDate } : {}),
+        ...(startPrecision !== undefined ? { startPrecision } : {}),
+        ...(endPrecision !== undefined ? { endPrecision } : {}),
+        ...(fields.dateLabel !== undefined ? { dateLabel: fields.dateLabel ? String(fields.dateLabel).trim() : null } : {}),
+        ...(fields.status !== undefined ? { status: String(fields.status) } : {}),
+        ...(fields.imageUrl !== undefined ? { imageUrl: fields.imageUrl ? String(fields.imageUrl) : null } : {}),
+        ...(fields.sortOrder !== undefined ? { sortOrder: nextSortOrder } : {}),
+        updatedAt: new Date(),
+      }).where(eq(eraMilestones.id, milestoneId));
+    });
 
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (error) {

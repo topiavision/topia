@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { WorldConfig } from '../worldConfig';
-import { btnLime, btnGhost } from '../InProcessFields';
+import { btnGhost } from '../InProcessFields';
 import Tour from '../../Tour';
 import { IP_TOUR } from './tour';
 import { ORANGE } from './constants';
@@ -58,10 +58,15 @@ export default function InProcessLayer({
   }, [getAccessToken]);
   const privyId = user?.id ?? '';
   const [creating, setCreating] = useState(false);
+  const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>('horizontal');
   // What the assistant bar launched: create a new roadmap, or live-edit an
   // existing one — optionally seeded with what the builder typed.
   const [botLaunch, setBotLaunch] = useState<null | { mode: 'create' | 'edit'; seed?: string; era?: EraView }>(null);
   const [canMint, setCanMint] = useState(false);
+
+  const chooseOrientation = (next: 'horizontal' | 'vertical') => {
+    setOrientation(next);
+  };
 
   useEffect(() => {
     if (!canEdit || !privyId) return;
@@ -173,6 +178,22 @@ export default function InProcessLayer({
     <div className="bg-[var(--page-bg)] p-4 flex flex-col gap-10">
       <div className="flex flex-col gap-0">
         <Masthead canEdit={canEdit} canMint={canMint} />
+        <div className="hidden lg:flex items-center justify-end gap-1.5 pt-3" aria-label="Roadmap view">
+          <span className="font-mono text-[9px] uppercase tracking-[1.5px] text-ink/35 mr-1">Roadmap view</span>
+          {(['horizontal', 'vertical'] as const).map((value) => {
+            const active = orientation === value;
+            return (
+              <button
+                key={value}
+                onClick={() => chooseOrientation(value)}
+                aria-pressed={active}
+                className={`min-h-8 px-3 rounded-md font-mono text-[9px] font-bold uppercase tracking-[1.5px] cursor-pointer transition-colors ${active ? 'bg-ink text-[var(--page-bg)] border border-ink' : 'bg-transparent text-ink/45 border border-ink/[0.14] hover:text-ink hover:border-ink/30'}`}
+              >
+                {value}
+              </button>
+            );
+          })}
+        </div>
         {/* Backers land here from Stripe — confirm, then refresh the meters. */}
         <FundingReturn onCredited={() => reloadGoals()} />
         {hasSwitcher && (
@@ -245,6 +266,7 @@ export default function InProcessLayer({
           payeeMissing={canEdit && payeeMissing}
           accessToken={accessToken}
           onGoalsChanged={reloadGoals}
+          orientation={orientation}
         />
       ))}
       {canEdit && !creating && visible.length > 0 && !projectScope && (

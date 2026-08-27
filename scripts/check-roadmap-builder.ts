@@ -131,6 +131,7 @@ draft = r.draft;
 r = applyCommand(draft, parseUtterance('start mastering', NOW), NOW);
 check('only one NOW at a time', r.draft.milestones.filter((m) => m.status === 'now').length, 1);
 check('mastering is the now', r.draft.milestones.find((m) => m.status === 'now')!.title, 'Mastering');
+check('former current milestone becomes done when NOW moves forward', r.draft.milestones[0].status, 'done');
 draft = r.draft;
 
 r = applyCommand(draft, parseUtterance('finish by March 2028', NOW), NOW);

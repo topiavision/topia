@@ -150,7 +150,7 @@ export function WorldBuilder({ privyId, seedText, onExitToForm, onClose, variant
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.world?.slug) {
-        router.push(`/dashboard/worlds/${data.world.slug}`);
+        router.push(`/dashboard/worlds/${data.world.slug}/in-process`);
         return;
       }
       setSaving(false);
