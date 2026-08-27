@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useCallback, use } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -62,11 +61,18 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const AVATAR_FILLS = ['bg-lime text-obsidian', 'bg-blue text-bone', 'bg-pink text-obsidian', 'bg-green text-obsidian', 'bg-orange text-obsidian'];
 
+const PROJECT_SECTIONS = [
+  { id: 'progress', label: 'PROGRESS' },
+  { id: 'story', label: 'STORY' },
+  { id: 'media', label: 'MEDIA' },
+  { id: 'builders', label: 'BUILDERS' },
+] as const;
+type ProjectSection = typeof PROJECT_SECTIONS[number]['id'];
+
 /* ── Page ─────────────────────────────────────────────────────── */
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ slug: string; projectSlug: string }> }) {
   const { slug, projectSlug } = use(params);
-  const router = useRouter();
   const { user, authenticated } = usePrivy();
   const [world, setWorld] = useState<WorldBasic | null>(null);
   const [project, setProject] = useState<ProjectDetail | null>(null);
@@ -80,6 +86,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [activeSection, setActiveSection] = useState<ProjectSection>('progress');
 
   useEffect(() => {
     let cancelled = false;
@@ -136,7 +143,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
       .then((r) => r.json())
       .then((d) => setProjectEras(d.eras ?? []))
       .catch(() => {});
-  }, [world?.id, project?.id]);
+  }, [world, project]);
   useEffect(() => { loadProjectEras(); }, [loadProjectEras]);
 
   useEffect(() => {
@@ -159,19 +166,23 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
   const nextProject = currentIndex >= 0 && currentIndex < siblings.length - 1 ? siblings[currentIndex + 1] : null;
   const otherProjects = useMemo(() => siblings.filter((p) => p.slug !== projectSlug).slice(0, 6), [siblings, projectSlug]);
 
-  // ← → flip between sibling projects — same keys the world tabs use.
+  // Project sections deep-link without query strings so links survive Privy
+  // OAuth. The old #roadmap anchor maps to the new Progress destination.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-      const target = e.key === 'ArrowLeft' ? prevProject : nextProject;
-      if (target) router.push(`/worlds/${slug}/projects/${target.slug}`);
+    function applyHash() {
+      const hash = window.location.hash.slice(1);
+      if (hash === 'roadmap') setActiveSection('progress');
+      else if (PROJECT_SECTIONS.some((section) => section.id === hash)) setActiveSection(hash as ProjectSection);
     }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [prevProject, nextProject, router, slug]);
+    applyHash();
+    window.addEventListener('hashchange', applyHash);
+    return () => window.removeEventListener('hashchange', applyHash);
+  }, []);
+
+  function selectSection(section: ProjectSection) {
+    setActiveSection(section);
+    history.replaceState(null, '', section === 'progress' ? window.location.pathname : `#${section}`);
+  }
 
   const embed = project?.videoUrl ? getEmbedUrl(project.videoUrl) : null;
   const allTags = (project?.tags as string[] | null) || [];
@@ -226,297 +237,175 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
 
   return (
     <PageShell>
-      <section className="min-h-screen px-4 md:px-6 py-4 md:py-6 bg-[var(--page-bg)]">
-        <div className="max-w-[var(--content-max)] mx-auto">
-          <div className="relative z-10 max-w-[1320px] mx-auto border border-ink/[0.08] rounded-lg overflow-clip bg-[var(--page-bg)]">
-            <div className="flex flex-col md:grid md:grid-cols-[252px_minmax(0,1fr)]">
+      <section className="min-h-screen px-3 sm:px-4 md:px-6 py-3 md:py-5 bg-[var(--page-bg)]">
+        <div className="relative z-10 max-w-[1320px] mx-auto border border-ink/[0.1] rounded-xl overflow-clip bg-[var(--page-bg)]">
+          <header>
+            <div className={`${config.bg} min-h-8 px-4 py-2 flex items-center justify-between gap-4`}>
+              <span className={`min-w-0 truncate font-mono text-[9px] uppercase tracking-[2px] ${config.textOn} opacity-75`}>topia://project/{project.slug}</span>
+              <span className={`shrink-0 font-mono text-[9px] font-bold uppercase tracking-[1.5px] ${config.textOn}`}>
+                {projectEras.some((era) => era.status === 'active' && era.milestones.some((milestone) => milestone.status === 'now')) ? '● In motion' : 'Project'}
+              </span>
+            </div>
 
-              {/* ═══ SPINE — the world stays present ═══ */}
-              <aside className="md:border-r md:border-ink/[0.06]">
-                <div className="md:sticky md:top-[calc(var(--nav-height)+16px)] flex flex-col">
-                  <div className={`${config.bg} px-4 py-2 flex items-center justify-between`}>
-                    <span className={`font-mono text-[9px] uppercase tracking-[2px] ${config.textOn} opacity-70`}>topia://world/file</span>
-                    <span className={`font-mono text-[10px] uppercase tracking-wider ${config.textOn} opacity-55`}>{fileNo}</span>
+            <div className="p-4 md:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <Link href={`/worlds/${world.slug}#projects`} className="inline-flex items-center gap-2.5 no-underline group min-w-0">
+                  <span className="w-9 h-9 rounded-md border border-ink/[0.12] overflow-hidden bg-ink/[0.04] shrink-0">
+                    {world.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={world.imageUrl} alt="" className="w-full h-full object-cover" />
+                    ) : <span className="w-full h-full flex items-center justify-center font-basement font-black text-[11px] text-ink/30">{world.title[0]}</span>}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="font-mono text-[8px] uppercase tracking-[1.5px] text-ink/35 block">World</span>
+                    <span className="font-mono text-[11px] font-bold uppercase text-ink/65 group-hover:text-ink block truncate">{world.title} / Projects</span>
+                  </span>
+                </Link>
+                <span className="font-mono text-[9px] uppercase tracking-[1.5px] text-ink/35">{currentIndex >= 0 ? `${currentIndex + 1} of ${siblings.length}` : `${siblings.length} projects`}</span>
+              </div>
+
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-mono text-[9px] font-bold uppercase tracking-[2px]" style={{ color: 'var(--accent-ink)' }}>Project</p>
+                  <h1 className="font-basement font-black text-[clamp(28px,4vw,42px)] leading-[0.92] uppercase text-ink mt-1 break-words">{project.name}</h1>
+                  {project.description && <p className="font-zirkon text-[15px] leading-relaxed text-ink/60 mt-2 max-w-3xl">{project.description}</p>}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {project.url && <a href={externalHref(project.url)} target="_blank" rel="noopener noreferrer" className={`min-h-9 inline-flex items-center font-mono text-[10px] font-bold uppercase tracking-wider px-3 rounded-md no-underline ${config.bg} ${config.textOn}`}>Visit ↗</a>}
+                  <ShareButton kind="project" title={project.name} text={`${project.name} — a project from ${world.title} on TOPIA`} iconSize={12} className="min-h-9 inline-flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-ink/60 hover:text-ink border border-ink/[0.16] rounded-md px-3 cursor-pointer bg-transparent" />
+                  {isBuilder && <Link href={`/dashboard/worlds/${world.slug}/projects`} className="min-h-9 inline-flex items-center font-mono text-[10px] font-bold uppercase tracking-wider text-ink/60 hover:text-ink border border-ink/[0.16] rounded-md px-3 no-underline">Edit</Link>}
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <div role="tablist" aria-label={`${project.name} sections`} className="sticky top-[env(safe-area-inset-top,0px)] md:top-[var(--nav-height)] z-20 bg-[var(--page-bg)] border-y border-ink/[0.08] px-1 sm:px-2 flex items-center overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {PROJECT_SECTIONS.map((section) => {
+              const active = activeSection === section.id;
+              const count = section.id === 'progress' ? projectEras.length : section.id === 'builders' ? credits.length : undefined;
+              return (
+                <button key={section.id} id={`project-tab-${section.id}`} role="tab" aria-selected={active} aria-controls="project-tabpanel" onClick={() => selectSection(section.id)} className={`min-h-11 font-mono text-[10px] uppercase tracking-[1.5px] px-3 sm:px-4 whitespace-nowrap cursor-pointer bg-transparent border-x-0 border-t-0 border-b-2 border-solid transition-colors flex items-center gap-1.5 ${active ? 'text-ink font-bold' : 'text-ink/45 hover:text-ink/75'}`} style={{ borderBottomColor: active ? config.hex : 'transparent' }}>
+                  {section.label}
+                  {count !== undefined && <span className={`font-mono text-[9px] px-1.5 py-px rounded-full tabular-nums ${active ? `${config.bg} ${config.textOn}` : 'text-ink/40 border border-ink/[0.12]'}`}>{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          <main id="project-tabpanel" role="tabpanel" aria-labelledby={`project-tab-${activeSection}`} className="min-h-[420px]">
+            {activeSection === 'progress' && (
+              projectEras.length > 0 || isBuilder ? (
+                <InProcessLayer eras={projectEras} worldId={world.id} slug={world.slug} projects={[{ id: project.id, name: project.name, slug: project.slug }]} canEdit={isBuilder} onChanged={loadProjectEras} projectScope={project.id} />
+              ) : (
+                <div className="min-h-[360px] flex flex-col items-center justify-center text-center p-6">
+                  <p className="font-mono text-[11px] font-bold uppercase tracking-[1.5px] text-ink/50">No public roadmap yet</p>
+                  <p className="font-zirkon text-[14px] text-ink/45 mt-2 max-w-md">When the builders publish milestones and process updates, the project&apos;s progress will live here.</p>
+                </div>
+              )
+            )}
+
+            {activeSection === 'story' && (
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-7 p-5 md:p-7">
+                <article className="min-w-0 max-w-[68ch]">
+                  {project.content ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{project.content}</ReactMarkdown> : <p className="font-mono text-[11px] uppercase tracking-wider text-ink/35">No story published yet</p>}
+                </article>
+                <aside className="min-w-0 space-y-3">
+                  <div className="rounded-lg border border-ink/[0.1] p-4">
+                    <span className="font-mono text-[9px] font-bold uppercase tracking-[2px] text-ink/45 block">Project details</span>
+                    <dl className="mt-3 space-y-2.5">
+                      <div><dt className="font-mono text-[8px] uppercase tracking-[1.5px] text-ink/35">Logged</dt><dd className="font-mono text-[11px] text-ink/65 mt-0.5">{logged || '—'}</dd></div>
+                      <div><dt className="font-mono text-[8px] uppercase tracking-[1.5px] text-ink/35">File</dt><dd className="font-mono text-[11px] text-ink/65 mt-0.5">{fileNo}</dd></div>
+                      {regularTags.length > 0 && <div><dt className="font-mono text-[8px] uppercase tracking-[1.5px] text-ink/35">Tags</dt><dd className="flex flex-wrap gap-1 mt-1">{regularTags.map((tag) => <span key={tag} className="font-mono text-[9px] uppercase tracking-[1px] border border-ink/[0.12] rounded px-1.5 py-0.5 text-ink/55">{tag}</span>)}</dd></div>}
+                    </dl>
                   </div>
-
-                  <div className="flex items-center gap-3 px-4 py-4 border-b border-ink/[0.05]">
-                    <div className="w-11 h-11 rounded-lg border-2 border-ink/15 overflow-hidden shrink-0 bg-ink/[0.04]">
-                      {world.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={world.imageUrl} alt={world.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center font-basement font-black text-[13px] text-ink/25 uppercase">{world.title[0]}</div>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-basement font-black text-[15px] uppercase leading-none text-ink truncate">{world.title}</div>
-                      <div className="font-mono text-[10px] text-ink/45 mt-1 truncate">topia://{world.slug}</div>
-                      <Link href={`/worlds/${world.slug}#projects`} className="font-mono text-[9px] uppercase tracking-[1.5px] no-underline mt-1 block" style={{ color: 'var(--accent-ink)' }}>
-                        ← back to world
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* Orbit index — every sibling one click away */}
-                  <div className="hidden md:block py-3">
-                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 px-4 block mb-1.5">
-                      in orbit · {siblings.length} {siblings.length === 1 ? 'project' : 'projects'}
-                    </span>
-                    {siblings.map((p) => {
-                      const isCurrent = p.slug === projectSlug;
-                      const firstTag = ((p.tags as string[] | null) || []).find((t) => !t.startsWith('tool:'));
-                      return (
-                        <Link
-                          key={p.id}
-                          href={`/worlds/${world.slug}/projects/${p.slug}`}
-                          className={`flex items-center gap-2.5 px-4 py-2 no-underline border-l-[3px] transition-colors ${isCurrent ? 'bg-ink/[0.03]' : 'border-transparent hover:bg-ink/[0.02]'}`}
-                          style={{ borderLeftColor: isCurrent ? config.hex : 'transparent' }}
-                          aria-current={isCurrent ? 'page' : undefined}
-                        >
-                          <span className="w-8 h-6 rounded border border-ink/10 overflow-hidden shrink-0 bg-ink/[0.04]">
-                            <ProjectThumb imageUrl={p.imageUrl} name={p.name} initialClassName="text-[8px]" />
-                          </span>
-                          <span className="min-w-0">
-                            <span className={`font-mono text-[11px] font-bold uppercase block truncate ${isCurrent ? 'text-ink' : 'text-ink/55'}`}>{p.name}</span>
-                            <span className={`font-mono text-[8.5px] uppercase tracking-[1px] block ${isCurrent ? '' : 'text-ink/35'}`} style={isCurrent ? { color: 'var(--accent-ink)' } : undefined}>
-                              {isCurrent ? '● viewing' : firstTag || '—'}
+                  {toolNames.length > 0 && (
+                    <div className="rounded-lg border border-ink/[0.1] p-4">
+                      <span className="font-mono text-[9px] font-bold uppercase tracking-[2px] text-ink/45 block mb-2">Tools used</span>
+                      {toolNames.map((name) => {
+                        const match = registryTools.find((tool) => norm(tool.name) === norm(name) || norm(tool.slug) === norm(name));
+                        const fav = match ? faviconUrl(match.url, 32) : null;
+                        const row = (
+                          <span className="min-h-9 flex items-center gap-2">
+                            <span className="w-5 h-5 rounded border border-ink/10 bg-ink/[0.04] overflow-hidden flex items-center justify-center shrink-0">
+                              {fav ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={fav} alt="" className="w-full h-full object-contain" />
+                              ) : <span className="font-mono text-[9px] text-ink/40">{name[0]?.toUpperCase()}</span>}
                             </span>
+                            <span className="font-mono text-[11px] text-ink/70 truncate">{match?.name || name}</span>
                           </span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-
-                  <div className="hidden md:block px-4 py-3 border-t border-ink/[0.04] mt-auto">
-                    <span className="font-mono text-[8px] tracking-[2px] text-ink/15 uppercase truncate block deco-text" data-deco={`P<TOPIA<${project.name.replace(/[^a-zA-Z0-9]/g, '<').toUpperCase().padEnd(18, '<')}`} />
-                    <span className="font-mono text-[8px] tracking-[2px] text-ink/10 uppercase truncate block deco-text" data-deco={`${world.id.slice(0, 10)}<<${(logged || '').replace(/\s/g, '')}<<${(project.slug || '').padEnd(12, '<')}`} />
-                  </div>
-                </div>
-              </aside>
-
-              {/* ═══ FOLIO — the project file ═══ */}
-              <main className="min-w-0 flex flex-col border-t border-ink/[0.06] md:border-t-0">
-
-                {/* Registry header */}
-                <div className="px-5 md:px-7 pt-5">
-                  <div className="font-mono text-[9.5px] uppercase tracking-[1.5px] text-ink/40 mb-2.5 truncate">
-                    <Link href="/worlds" className="no-underline text-ink/40 hover:text-ink/70 transition-colors">Worlds</Link>
-                    <span className="mx-1.5 text-ink/20">/</span>
-                    <Link href={`/worlds/${world.slug}`} className="no-underline font-bold text-ink/60 hover:text-ink transition-colors">{world.title}</Link>
-                    <span className="mx-1.5 text-ink/20">/</span>
-                    <Link href={`/worlds/${world.slug}#projects`} className="no-underline text-ink/40 hover:text-ink/70 transition-colors">Projects</Link>
-                    <span className="mx-1.5 text-ink/20">/</span>
-                    <span className="font-bold text-ink/70">{project.name}</span>
-                  </div>
-
-                  <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div className="min-w-0">
-                      <h1 className="font-basement font-black text-[clamp(24px,3.4vw,38px)] leading-[0.92] uppercase text-ink">{project.name}</h1>
-                      {project.description && (
-                        <p className="font-zirkon text-[13px] text-ink/50 italic mt-2 max-w-[58ch]">&ldquo;{project.description}&rdquo;</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0 mt-1">
-                      {project.url && (
-                        <a href={externalHref(project.url)} target="_blank" rel="noopener noreferrer" className={`font-mono text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-sm no-underline ${config.bg} ${config.textOn}`}>
-                          Visit →
-                        </a>
-                      )}
-                      <ShareButton
-                        kind="project"
-                        title={project.name}
-                        text={`${project.name} — a project from ${world.title} on TOPIA`}
-                        iconSize={11}
-                        className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-ink/50 hover:text-ink/70 transition-colors border border-ink/[0.12] rounded-sm px-2.5 py-1 cursor-pointer bg-transparent"
-                      />
-                      {isBuilder && (
-                        <Link href={`/dashboard/worlds/${world.slug}/projects`} className="font-mono text-[10px] uppercase tracking-wider text-ink/50 hover:text-ink/70 transition-colors border border-ink/[0.12] rounded-sm px-2.5 py-1 no-underline">
-                          Edit
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Meta band */}
-                <div className="mx-5 md:mx-7 mt-4 py-3 border-t border-b border-ink/[0.05] flex flex-wrap gap-x-7 gap-y-3">
-                  <div>
-                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 block">file no.</span>
-                    <span className="font-mono text-[11.5px] text-ink/70 mt-0.5 block tabular-nums">{fileNo}</span>
-                  </div>
-                  <div>
-                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 block">logged</span>
-                    <span className="font-mono text-[11.5px] text-ink/70 mt-0.5 block">{logged || '—'}</span>
-                  </div>
-                  {regularTags.length > 0 && (
-                    <div className="min-w-0">
-                      <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 block">tags</span>
-                      <span className="flex flex-wrap gap-1 mt-1">
-                        {regularTags.map((tag) => (
-                          <span key={tag} className="font-mono text-[9px] uppercase tracking-[1px] border border-ink/[0.1] rounded-[3px] px-1.5 py-0.5 text-ink/50">{tag}</span>
-                        ))}
-                      </span>
+                        );
+                        return match ? <Link key={name} href={`/resources/tools/${match.slug}`} className="block no-underline hover:opacity-80">{row}</Link> : <div key={name}>{row}</div>;
+                      })}
                     </div>
                   )}
-                </div>
-
-                {/* Media hero — video wins over image; neither → text moves up */}
-                {embed ? (
-                  <div className="mx-5 md:mx-7 mt-5 rounded-lg overflow-hidden border border-ink/[0.08]" style={{ aspectRatio: embed.vertical ? '9/16' : '16/9', maxHeight: embed.vertical ? '440px' : undefined }}>
-                    <iframe
-                      src={embed.src}
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      style={{ border: 'none' }}
-                      title={project.name}
-                    />
-                  </div>
-                ) : (
-                  <div className="mx-5 md:mx-7 mt-5 rounded-lg overflow-hidden border border-ink/[0.08] max-h-[440px]">
-                    <ProjectThumb imageUrl={project.imageUrl} name={project.name} alt={project.name} fallbackClassName="aspect-[16/5]" initialClassName="text-[clamp(32px,6vw,52px)]" />
-                  </div>
-                )}
-
-                {/* Body: prose + side column */}
-                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_240px] gap-7 px-5 md:px-7 py-6 flex-1">
-                  <article className="min-w-0 max-w-[62ch]">
-                    {project.content ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{project.content}</ReactMarkdown>
-                    ) : (
-                      <p className="font-mono text-[11px] uppercase tracking-wider text-ink/30">No field notes yet</p>
-                    )}
-                  </article>
-
-                  <aside className="min-w-0">
-                    {credits.length > 0 && (
-                      <div className="border border-ink/[0.08] rounded-lg px-4 py-3 mb-3 bg-ink/[0.02]">
-                        <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 block mb-2">credits</span>
-                        {credits.map((c, i) => {
-                          const initial = (c.name || c.username || '?')[0]?.toUpperCase();
-                          const inner = (
-                            <span className="flex items-center gap-2.5 py-1.5">
-                              {c.avatarUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={c.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-ink/10 shrink-0" />
-                              ) : (
-                                <span className={`w-7 h-7 rounded-full flex items-center justify-center font-basement font-black text-[10px] shrink-0 ${AVATAR_FILLS[i % AVATAR_FILLS.length]}`}>{initial}</span>
-                              )}
-                              <span className="min-w-0">
-                                <span className="font-mono text-[11.5px] font-bold text-ink block truncate">{c.name || c.username || 'Unknown'}</span>
-                                {c.role && <span className="font-mono text-[8.5px] uppercase tracking-[1px] block" style={{ color: 'var(--accent-ink)' }}>{c.role}</span>}
-                              </span>
-                            </span>
-                          );
-                          return c.username ? (
-                            <Link key={c.userId} href={`/profile/${c.username}`} className="block no-underline hover:opacity-80 transition-opacity">{inner}</Link>
-                          ) : (
-                            <div key={c.userId}>{inner}</div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {toolNames.length > 0 && (
-                      <div className="border border-ink/[0.08] rounded-lg px-4 py-3 mb-3 bg-ink/[0.02]">
-                        <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 block mb-2">tools used</span>
-                        {toolNames.map((name) => {
-                          const match = registryTools.find((t) => norm(t.name) === norm(name) || norm(t.slug) === norm(name));
-                          const fav = match ? faviconUrl(match.url, 32) : null;
-                          const row = (
-                            <span className="flex items-center gap-2 py-1.5">
-                              <span className="w-5 h-5 rounded border border-ink/10 bg-ink/[0.04] overflow-hidden flex items-center justify-center shrink-0">
-                                {fav ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={fav} alt="" className="w-full h-full object-contain" />
-                                ) : (
-                                  <span className="font-mono text-[9px] text-ink/40">{name[0]?.toUpperCase()}</span>
-                                )}
-                              </span>
-                              <span className="font-mono text-[11.5px] text-ink truncate">{match?.name || name}</span>
-                              {match?.category && <span className="font-mono text-[9px] text-ink/35 ml-auto shrink-0 truncate max-w-[80px]">{match.category.split(',')[0]}</span>}
-                            </span>
-                          );
-                          return match ? (
-                            <Link key={name} href={`/resources/tools/${match.slug}`} className="block no-underline hover:opacity-80 transition-opacity">{row}</Link>
-                          ) : (
-                            <div key={name}>{row}</div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {(project.url || projectLinks.length > 0) && (
-                      <div className="border border-ink/[0.08] rounded-lg px-4 py-3 bg-ink/[0.02]">
-                        <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 block mb-2">links</span>
-                        {project.url && (
-                          <a href={externalHref(project.url)} target="_blank" rel="noopener noreferrer" className={`flex items-center justify-between font-mono text-[10.5px] font-bold uppercase tracking-[1px] rounded-[5px] px-3 py-2 mb-1.5 no-underline ${config.bg} ${config.textOn}`}>
-                            Visit <span>→</span>
-                          </a>
-                        )}
-                        {projectLinks.map((link, i) => (
-                          <a key={i} href={externalHref(link.url)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between font-mono text-[10.5px] uppercase tracking-[1px] border border-ink/[0.1] rounded-[5px] px-3 py-2 mb-1.5 last:mb-0 no-underline text-ink hover:border-ink/30 transition-colors">
-                            <span className="truncate">{link.label}</span> <span className="shrink-0 ml-2">→</span>
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </aside>
-                </div>
-
-                {/* In Process — this project's own roadmap + process log */}
-                {(projectEras.length > 0 || isBuilder) && (
-                  <div id="roadmap" className="border-t border-ink/[0.06] scroll-mt-[var(--nav-height,64px)]">
-                    <InProcessLayer
-                      eras={projectEras}
-                      worldId={world.id}
-                      slug={world.slug}
-                      projects={[{ id: project.id, name: project.name, slug: project.slug }]}
-                      canEdit={isBuilder}
-                      onChanged={loadProjectEras}
-                      projectScope={project.id}
-                    />
-                  </div>
-                )}
-
-                {/* Orbit navigation */}
-                {(prevProject || nextProject) && (
-                  <div className="grid grid-cols-2 border-t border-ink/[0.08]">
-                    {prevProject ? (
-                      <Link href={`/worlds/${world.slug}/projects/${prevProject.slug}`} className="px-5 md:px-7 py-3.5 no-underline hover:bg-ink/[0.02] transition-colors">
-                        <span className="font-mono text-[8.5px] uppercase tracking-[2px] text-ink/40 block">← prev in orbit</span>
-                        <span className="font-mono text-[12px] font-bold uppercase text-ink block truncate mt-0.5">{prevProject.name}</span>
-                      </Link>
-                    ) : <div />}
-                    {nextProject ? (
-                      <Link href={`/worlds/${world.slug}/projects/${nextProject.slug}`} className="px-5 md:px-7 py-3.5 no-underline hover:bg-ink/[0.02] transition-colors text-right border-l border-ink/[0.05]">
-                        <span className="font-mono text-[8.5px] uppercase tracking-[2px] text-ink/40 block">next in orbit →</span>
-                        <span className="font-mono text-[12px] font-bold uppercase text-ink block truncate mt-0.5">{nextProject.name}</span>
-                      </Link>
-                    ) : <div className="border-l border-ink/[0.05]" />}
-                  </div>
-                )}
-
-                {/* More from this world */}
-                {otherProjects.length > 0 && (
-                  <div className="px-5 md:px-7 py-4 border-t border-ink/[0.05]">
-                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[2px] text-ink/50 block mb-2.5">more from {world.title}</span>
-                    <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                      {otherProjects.map((p) => (
-                        <Link key={p.id} href={`/worlds/${world.slug}/projects/${p.slug}`} className="w-[150px] shrink-0 border border-ink/[0.08] rounded-md overflow-hidden no-underline bg-ink/[0.02] hover:border-ink/25 transition-colors">
-                          <span className="block h-[62px] bg-ink/[0.04] overflow-hidden">
-                            <ProjectThumb imageUrl={p.imageUrl} name={p.name} initialClassName="text-[16px]" />
-                          </span>
-                          <span className="font-mono text-[10px] font-bold uppercase text-ink block truncate px-2.5 py-2">{p.name}</span>
-                        </Link>
-                      ))}
+                  {(project.url || projectLinks.length > 0) && (
+                    <div className="rounded-lg border border-ink/[0.1] p-4">
+                      <span className="font-mono text-[9px] font-bold uppercase tracking-[2px] text-ink/45 block mb-2">Links</span>
+                      {project.url && <a href={externalHref(project.url)} target="_blank" rel="noopener noreferrer" className="min-h-9 flex items-center justify-between font-mono text-[10px] font-bold uppercase tracking-[1px] no-underline text-ink/70">Project site <span>↗</span></a>}
+                      {projectLinks.map((link) => <a key={`${link.label}-${link.url}`} href={externalHref(link.url)} target="_blank" rel="noopener noreferrer" className="min-h-9 flex items-center justify-between font-mono text-[10px] uppercase tracking-[1px] no-underline text-ink/60 border-t border-ink/[0.06]">{link.label}<span>↗</span></a>)}
                     </div>
+                  )}
+                </aside>
+              </div>
+            )}
+
+            {activeSection === 'media' && (
+              <div className="p-5 md:p-7">
+                {embed ? (
+                  <div className="max-w-5xl mx-auto rounded-xl overflow-hidden border border-ink/[0.1]" style={{ aspectRatio: embed.vertical ? '9/16' : '16/9', maxHeight: embed.vertical ? '680px' : undefined }}><iframe src={embed.src} className="w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ border: 'none' }} title={project.name} /></div>
+                ) : project.imageUrl ? (
+                  <div className="max-w-5xl mx-auto rounded-xl overflow-hidden border border-ink/[0.1] max-h-[680px]"><ProjectThumb imageUrl={project.imageUrl} name={project.name} alt={project.name} fallbackClassName="aspect-[16/9]" initialClassName="text-[clamp(32px,6vw,52px)]" /></div>
+                ) : (
+                  <div className="min-h-[320px] flex items-center justify-center"><p className="font-mono text-[11px] uppercase tracking-[1.5px] text-ink/35">No media published yet</p></div>
+                )}
+              </div>
+            )}
+
+            {activeSection === 'builders' && (
+              <div className="p-5 md:p-7">
+                {credits.length === 0 ? <div className="min-h-[320px] flex items-center justify-center"><p className="font-mono text-[11px] uppercase tracking-[1.5px] text-ink/35">No credited builders yet</p></div> : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {credits.map((credit, index) => {
+                      const inner = (
+                        <span className="min-h-[72px] flex items-center gap-3 rounded-lg border border-ink/[0.1] p-3 hover:border-ink/30 transition-colors">
+                          {credit.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={credit.avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover border border-ink/10 shrink-0" />
+                          ) : (
+                            <span className={`w-11 h-11 rounded-full flex items-center justify-center font-basement font-black text-[12px] shrink-0 ${AVATAR_FILLS[index % AVATAR_FILLS.length]}`}>{(credit.name || credit.username || '?')[0]?.toUpperCase()}</span>
+                          )}
+                          <span className="min-w-0">
+                            <span className="font-mono text-[12px] font-bold uppercase text-ink block truncate">{credit.name || credit.username || 'Unknown'}</span>
+                            {credit.username && <span className="font-mono text-[10px] text-ink/40 block truncate">@{credit.username}</span>}
+                            <span className="font-mono text-[8px] uppercase tracking-[1.5px] block mt-1" style={{ color: 'var(--accent-ink)' }}>{credit.role || 'Contributor'}</span>
+                          </span>
+                        </span>
+                      );
+                      return credit.username ? <Link key={credit.userId} href={`/profile/${credit.username}`} className="no-underline">{inner}</Link> : <div key={credit.userId}>{inner}</div>;
+                    })}
                   </div>
                 )}
-              </main>
+              </div>
+            )}
+          </main>
+
+          {(prevProject || nextProject) && (
+            <nav aria-label="Other projects in this world" className="grid grid-cols-2 border-t border-ink/[0.08]">
+              {prevProject ? <Link href={`/worlds/${world.slug}/projects/${prevProject.slug}`} className="px-4 md:px-6 py-4 no-underline hover:bg-ink/[0.025] transition-colors"><span className="font-mono text-[8px] uppercase tracking-[2px] text-ink/40 block">← Previous project</span><span className="font-mono text-[11px] font-bold uppercase text-ink block truncate mt-1">{prevProject.name}</span></Link> : <div />}
+              {nextProject ? <Link href={`/worlds/${world.slug}/projects/${nextProject.slug}`} className="px-4 md:px-6 py-4 no-underline hover:bg-ink/[0.025] transition-colors text-right border-l border-ink/[0.06]"><span className="font-mono text-[8px] uppercase tracking-[2px] text-ink/40 block">Next project →</span><span className="font-mono text-[11px] font-bold uppercase text-ink block truncate mt-1">{nextProject.name}</span></Link> : <div className="border-l border-ink/[0.06]" />}
+            </nav>
+          )}
+
+          {otherProjects.length > 0 && (
+            <div className="px-4 md:px-6 py-4 border-t border-ink/[0.06]">
+              <span className="font-mono text-[9px] font-bold uppercase tracking-[2px] text-ink/45 block mb-2.5">More from {world.title}</span>
+              <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                {otherProjects.map((item) => <Link key={item.id} href={`/worlds/${world.slug}/projects/${item.slug}`} className="w-[156px] shrink-0 border border-ink/[0.1] rounded-lg overflow-hidden no-underline hover:border-ink/30 transition-colors"><span className="block h-[68px] bg-ink/[0.04] overflow-hidden"><ProjectThumb imageUrl={item.imageUrl} name={item.name} initialClassName="text-[16px]" /></span><span className="font-mono text-[10px] font-bold uppercase text-ink block truncate px-2.5 py-2">{item.name}</span></Link>)}
+              </div>
             </div>
+          )}
           </div>
-        </div>
       </section>
     </PageShell>
   );

@@ -202,7 +202,7 @@ export default function AvatarMenu() {
                       </span>
                       {(wm.role === 'world_builder' || wm.role === 'owner') && (
                         <Link
-                          href={`/dashboard/worlds/${wm.worldSlug}`}
+                          href={`/dashboard/worlds/${wm.worldSlug}/in-process`}
                           onClick={() => setOpen(false)}
                           className="opacity-40 hover:opacity-100 transition"
                           style={{ color: 'var(--foreground)' }}

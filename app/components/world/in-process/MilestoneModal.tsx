@@ -25,8 +25,8 @@ function parseGoalDollars(raw: string): { cents: number | null; error?: string }
   return { cents };
 }
 
-export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canFund, accessToken, onClose, onChanged }: {
-  eraId: string; existing?: EraMilestoneView; nextIndex?: number; privyId: string;
+export function MilestoneModal({ eraId, milestones, existing, nextIndex, privyId, goal, canFund, accessToken, onClose, onChanged }: {
+  eraId: string; milestones: EraMilestoneView[]; existing?: EraMilestoneView; nextIndex?: number; privyId: string;
   /** Existing funding goal for this milestone, if any. */
   goal?: FundingGoalView;
   /** Whether this world's admin has funding access at all. When false the
@@ -59,6 +59,7 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canF
   );
   const [blurb, setBlurb] = useState(goal?.blurb ?? '');
   const [goalError, setGoalError] = useState<string | null>(null);
+  const otherNow = milestones.filter((milestone) => milestone.status === 'now' && milestone.id !== existing?.id);
 
   const save = async () => {
     if (!draft.title.trim()) return;
@@ -166,6 +167,11 @@ export function MilestoneModal({ eraId, existing, nextIndex, privyId, goal, canF
             <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })} className={`${inputCls} appearance-none cursor-pointer`}>
               {MILESTONE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
+            {draft.status === 'now' && otherNow.length > 0 && (
+              <p className="mt-2 rounded-md border border-orange/35 bg-orange/[0.04] px-3 py-2 font-mono text-[10px] leading-relaxed text-orange">
+                Saving makes this the only milestone in motion. Earlier current work becomes Done; later current work returns to Upcoming.
+              </p>
+            )}
           </div>
           <ImageField value={draft.imageUrl} onChange={(url) => setDraft({ ...draft, imageUrl: url })} />
 

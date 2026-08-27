@@ -70,8 +70,8 @@ export function RoadmapFundingBar({
         </span>
         <span className="font-mono text-[10px] uppercase tracking-[1px] text-ink/45">
           {projectGoal
-            ? `${patrons} ${patrons === 1 ? 'backer' : 'backers'}`
-            : `${fundedCount} of ${milestoneGoals.length} funded · ${patrons} ${patrons === 1 ? 'backer' : 'backers'}`}
+            ? `${patrons} ${patrons === 1 ? 'patron' : 'patrons'}`
+            : `${fundedCount} of ${milestoneGoals.length} funded · ${patrons} ${patrons === 1 ? 'patron' : 'patrons'}`}
         </span>
       </div>
 

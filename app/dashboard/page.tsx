@@ -124,7 +124,7 @@ export default function DashboardOverviewPage() {
             {([
               { label: 'Worlds',    value: worldMemberships.length, delta: stats?.deltas.worlds,    sub: "you're in",       href: '/worlds' },
               { label: 'Events',    value: stats?.events ?? hostedEvents.length, delta: stats?.deltas.events, sub: 'hosted', href: '/events' },
-              { label: 'Building',  value: builderCount,             delta: undefined,               sub: 'as owner/builder', href: null },
+              { label: 'Building',  value: builderCount,             delta: undefined,               sub: 'as lead/builder', href: null },
               // Only exists when money has actually moved — no $0 placeholder.
               ...(totalRaised > 0 ? [{ label: 'Raised', value: totalRaised, money: true, delta: undefined, sub: 'across your worlds', href: null }] : []),
               { label: 'Connects', value: stats?.followers ?? 0,    delta: stats?.deltas.followers, sub: 'follow you',      href: profile?.username ? `/profile/${profile.username}` : null },
@@ -259,7 +259,7 @@ function YourWorldsSection({ worldMemberships, goalsByWorld }: {
           return (
             <Link
               key={w.worldId}
-              href={`/dashboard/worlds/${w.worldSlug}`}
+              href={`/dashboard/worlds/${w.worldSlug}/in-process`}
               className="bg-[var(--page-bg)] hover:bg-ink/[0.03] transition px-4 py-3 block no-underline"
             >
               <div className="flex items-center gap-3">
@@ -284,7 +284,7 @@ function YourWorldsSection({ worldMemberships, goalsByWorld }: {
                   </div>
                 </div>
                 <span className="font-mono text-[9px] uppercase tracking-[2px] text-ink/30 shrink-0">
-                  {w.role === 'owner' ? 'OWNER' : w.role === 'world_builder' ? 'BUILDER' : 'COLLAB'}
+                  {w.role === 'owner' ? 'LEAD' : w.role === 'world_builder' ? 'BUILDER' : 'COLLABORATOR'}
                 </span>
               </div>
               {goals && (

@@ -98,12 +98,12 @@ export function MilestoneDetail({ m, index, updateCount, canEdit, goal, acceptin
                 style={{ backgroundColor: 'var(--lime)', color: 'var(--obsidian)' }}
               >
                 {goal.goalCents != null && goal.raisedCents >= goal.goalCents
-                  ? 'Back it anyway'
-                  : 'Back this milestone'}
+                  ? 'Fund it further'
+                  : 'Fund this milestone'}
               </button>
             ) : (
               <p className="font-mono text-[11px] uppercase tracking-[1px] text-ink/40">
-                Backing opens soon
+                Funding opens soon
               </p>
             )}
           </div>

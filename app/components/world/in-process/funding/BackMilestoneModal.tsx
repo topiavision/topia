@@ -35,16 +35,11 @@ function previewTotal(cents: number): Breakdown {
   return { contributionCents: cents, platformFeeCents, processingFeeCents: totalCents - gross, totalCents };
 }
 
-/** Presets derived from the goal so they feel proportionate — backing a $500
- *  milestone and a $50,000 one shouldn't offer the same three numbers. */
-function presetsFor(goalCents: number | null): number[] {
-  if (!goalCents || goalCents <= 0) return [2500, 5000, 10000];
-  const raw = [goalCents / 50, goalCents / 20, goalCents / 10];
-  const rounded = raw.map((n) => {
-    const mag = Math.pow(10, Math.max(0, String(Math.round(n / 100)).length - 2));
-    return Math.max(500, Math.round(n / 100 / mag) * mag * 100);
-  });
-  return [...new Set(rounded)].slice(0, 3);
+/** Patronage is positioned as meaningful milestone funding. Keep the three
+ *  primary choices stable and three-digit; smaller or larger amounts remain
+ *  available through Other. */
+function presetsFor(): number[] {
+  return [10000, 25000, 50000];
 }
 
 export function BackMilestoneModal({
@@ -56,7 +51,7 @@ export function BackMilestoneModal({
   privyId?: string | null;
   onClose: () => void;
 }) {
-  const presets = useMemo(() => presetsFor(goal.goalCents), [goal.goalCents]);
+  const presets = useMemo(() => presetsFor(), []);
   const [amountCents, setAmountCents] = useState<number>(presets[1] ?? 5000);
   const [custom, setCustom] = useState('');
   const [email, setEmail] = useState('');
@@ -97,7 +92,7 @@ export function BackMilestoneModal({
           message: message.trim() || null,
           anonymous,
           privyId: privyId ?? undefined,
-          // Return the backer to exactly where they were.
+          // Return the patron to exactly where they were.
           returnPath: window.location.pathname + window.location.hash,
         }),
       });
@@ -127,7 +122,7 @@ export function BackMilestoneModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-3">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-[2px] text-ink/50">Back this milestone</p>
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[2px] text-ink/50">Fund this milestone</p>
           <button onClick={onClose} aria-label="Close" className="bg-transparent border-none cursor-pointer text-[18px] leading-none p-0 text-ink/50">×</button>
         </div>
 
@@ -136,7 +131,7 @@ export function BackMilestoneModal({
         {worldTitle && <p className="font-mono text-[11px] text-ink/45 mt-1">{worldTitle}</p>}
 
         <div className="mt-4">
-          <label className={labelCls}>Your contribution</label>
+          <label className={labelCls}>Funding amount</label>
           <div className="grid grid-cols-4 gap-2">
             {presets.map((p) => (
               <button
@@ -166,7 +161,7 @@ export function BackMilestoneModal({
         {/* Fees are added on top, so show the arithmetic before the button. */}
         <div className="mt-3.5 rounded-lg border border-ink/[0.12] overflow-hidden">
           {[
-            ['Your contribution', fees.contributionCents, true],
+            ['Milestone funding', fees.contributionCents, true],
             ['Topia platform fee (5%)', fees.platformFeeCents, false],
             ['Card processing (est.)', fees.processingFeeCents, false],
           ].map(([label, cents, strong]) => (

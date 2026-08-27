@@ -9,9 +9,9 @@ import { ReadOnlyBanner } from '../../../_components/ReadOnlyBanner';
 import { useWorldDashboard } from '../layout';
 
 function roleBadge(role: string) {
-  if (role === 'owner') return 'Owner';
-  if (role === 'world_builder') return 'Builder';
-  return 'Collab';
+  if (role === 'owner') return 'Lead worldbuilder';
+  if (role === 'world_builder') return 'Worldbuilder';
+  return 'Collaborator';
 }
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -82,7 +82,7 @@ export default function WorldMembersPage() {
 
   /* Member search debounce */
   useEffect(() => {
-    if (memberSearch.length < 2) { setMemberSearchResults([]); return; }
+    if (memberSearch.length < 2) return;
     const t = setTimeout(() => {
       if (!user) return;
       setMemberSearching(true);
@@ -160,7 +160,7 @@ export default function WorldMembersPage() {
     return false;
   };
 
-  // Sort: owner first, then builders, then collabs
+  // Sort: lead worldbuilder first, then worldbuilders, then collaborators.
   const sortedMembers = [...members].sort((a, b) => {
     const priority = (r: string) => r === 'owner' ? 0 : r === 'world_builder' ? 1 : 2;
     return priority(a.role) - priority(b.role);
@@ -174,9 +174,9 @@ export default function WorldMembersPage() {
         <p className="font-mono text-[11px] text-orange mb-4 px-3 py-2 rounded-lg border border-orange/40 bg-orange/5">{memberError}</p>
       )}
 
-      {/* Invite — builders+ only, FIRST: it's the page's primary action */}
+      {/* Invite — worldbuilders only, FIRST: it's the page's primary action */}
       {isBuilder && (
-        <SectionCard title="Invite member">
+        <SectionCard title="Invite a builder">
           <div className="flex gap-1 mb-3">
             {(['collaborator', 'world_builder'] as const).map(role => (
               <button
@@ -189,20 +189,24 @@ export default function WorldMembersPage() {
                     : 'bg-transparent text-ink/40 border-ink/15 hover:text-ink hover:border-ink/40'
                 }`}
               >
-                {role === 'world_builder' ? 'Builder' : 'Collaborator'}
+                {role === 'world_builder' ? 'Worldbuilder' : 'Collaborator'}
               </button>
             ))}
           </div>
           <p className="font-mono text-[11px] text-ink/40 mb-3">
             {memberRole === 'world_builder'
-              ? 'Builders can edit the world, its projects, and invite others.'
+              ? 'Worldbuilders can edit the world, its projects, and invite others.'
               : 'Collaborators are listed on the world but can’t edit it.'}
           </p>
           <div className="relative">
             <input
               type="text"
               value={memberSearch}
-              onChange={e => setMemberSearch(e.target.value)}
+              onChange={e => {
+                const value = e.target.value;
+                setMemberSearch(value);
+                if (value.length < 2) setMemberSearchResults([]);
+              }}
               placeholder="Search by username…"
               className={inputCls}
               disabled={addingMember}
@@ -277,7 +281,7 @@ export default function WorldMembersPage() {
                       {g.email && <span className="text-ink/35 ml-1.5">{g.email}</span>}
                     </span>
                     <span className="font-mono text-[9px] uppercase tracking-[1.5px] text-ink/35 ml-auto shrink-0">
-                      {g.role === 'world_builder' ? 'builder' : 'collab'} · awaiting claim
+                      {g.role === 'world_builder' ? 'worldbuilder' : 'collaborator'} · awaiting claim
                     </span>
                   </div>
                 ))}
@@ -289,8 +293,8 @@ export default function WorldMembersPage() {
         </SectionCard>
       )}
 
-      {/* Active members */}
-      <SectionCard title={`Members · ${sortedMembers.length}`}>
+      {/* Active builders */}
+      <SectionCard title={`Builders · ${sortedMembers.length}`}>
         {sortedMembers.length > 0 ? (
           <div className="divide-y divide-ink/[0.05]">
             {sortedMembers.map(m => (
@@ -311,8 +315,8 @@ export default function WorldMembersPage() {
                     disabled={changingRole === m.userId}
                     className={`font-mono text-[11px] uppercase tracking-[1px] px-2 py-1 border border-ink/15 rounded-sm bg-transparent text-ink/70 cursor-pointer outline-none ${changingRole === m.userId ? 'opacity-40' : ''}`}
                   >
-                    <option value="world_builder">Builder</option>
-                    <option value="collaborator">Collab</option>
+                    <option value="world_builder">Worldbuilder</option>
+                    <option value="collaborator">Collaborator</option>
                   </select>
                 ) : (
                   <span className={`font-mono text-[10px] uppercase tracking-[1px] px-2 py-0.5 rounded-sm shrink-0 ${
@@ -344,7 +348,7 @@ export default function WorldMembersPage() {
                     <button
                       onClick={() => setConfirmRemoveId(m.userId)}
                       className="font-mono text-[14px] text-ink/30 hover:text-orange transition shrink-0 bg-transparent border-none cursor-pointer leading-none"
-                      title="Remove member"
+                      title="Remove builder"
                     >
                       ×
                     </button>
@@ -354,7 +358,7 @@ export default function WorldMembersPage() {
             ))}
           </div>
         ) : (
-          <p className="font-mono text-[12px] text-ink/30">No members yet.</p>
+          <p className="font-mono text-[12px] text-ink/30">No builders yet.</p>
         )}
       </SectionCard>
 
@@ -369,7 +373,7 @@ export default function WorldMembersPage() {
                 </div>
                 <span className="font-mono text-[12px] text-ink flex-1 truncate">{inv.inviteeUsername ? `@${inv.inviteeUsername}` : inv.inviteeName || 'Unknown'}</span>
                 <span className="font-mono text-[10px] uppercase tracking-[1px] px-2 py-0.5 rounded-sm border border-ink/15 text-ink/40">
-                  {inv.role === 'world_builder' ? 'Builder' : 'Collab'} · Pending
+                  {inv.role === 'world_builder' ? 'Worldbuilder' : 'Collaborator'} · Pending
                 </span>
               </div>
             ))}

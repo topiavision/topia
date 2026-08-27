@@ -30,7 +30,7 @@ export function NowUnit({ m, index, posts, goal, acceptingSupport, onSupport, cl
   posts: EraPostView[];
   goal?: FundingGoalView;
   acceptingSupport?: boolean;
-  /** Opens the milestone in the rail, where the full backing flow lives. */
+  /** Opens the milestone in the roadmap, where the full funding flow lives. */
   onSupport: () => void;
   className?: string;
 }) {
@@ -68,7 +68,7 @@ export function NowUnit({ m, index, posts, goal, acceptingSupport, onSupport, cl
                     className="font-mono text-[11px] uppercase tracking-[1px] font-bold px-3.5 py-2 rounded-sm cursor-pointer border-none"
                     style={{ backgroundColor: 'var(--lime)', color: 'var(--obsidian)' }}
                   >
-                    Support this milestone
+                    Fund this milestone
                   </button>
                 )}
                 <span className="font-mono text-[11px] text-ink/55">
@@ -76,10 +76,10 @@ export function NowUnit({ m, index, posts, goal, acceptingSupport, onSupport, cl
                     <>
                       {usd(totalRaisedCents(goal!))}
                       {goal!.goalCents != null && <> of {usd(goal!.goalCents)}</>}
-                      {goal!.patronCount > 0 && <> · {goal!.patronCount} backer{goal!.patronCount === 1 ? '' : 's'}</>}
+                      {goal!.patronCount > 0 && <> · {goal!.patronCount} patron{goal!.patronCount === 1 ? '' : 's'}</>}
                     </>
                   ) : goal!.goalCents != null ? (
-                    // Never "$0 of $X · 0 backers" — a goal with no money yet
+                    // Never "$0 of $X · 0 patrons" — a goal with no money yet
                     // states the destination, not the emptiness.
                     <>Goal {usd(goal!.goalCents)}</>
                   ) : null}

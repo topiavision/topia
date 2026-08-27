@@ -11,11 +11,12 @@ import { WorldData, ToolOption, PendingInvite, ProjectItem } from '../../_compon
 
 // First-visit walkthrough of a world's HQ — once per account, builders only.
 const HQ_TOUR: TourStep[] = [
-  { title: 'Your world’s HQ', body: 'Everything about your world is managed from here — identity, projects, the build-in-public layer, and your crew. Quick tour?', nextLabel: 'Show me around →', skipLabel: 'Skip — I’ll explore' },
-  { target: 'tour-hq-details', title: 'Identity lives here', body: 'Name, declaration, cover imagery, links, category — and the live/archive switch. This is what visitors meet first.', place: 'right' },
+  { title: 'Your world’s workspace', body: 'The management view now mirrors the public world: Now, Projects, Patrons, Builders, and About. Quick tour?', nextLabel: 'Show me around →', skipLabel: 'Skip — I’ll explore' },
+  { target: 'tour-hq-now', title: 'Start with what’s moving', body: 'Edit the horizontal roadmap, choose the current milestone, and publish process updates from Now.', place: 'right' },
   { target: 'tour-hq-projects', title: 'The work itself', body: 'Each project gets its own page in your world’s orbit — with credits, links, media, and its own roadmap.', place: 'right' },
-  { target: 'tour-hq-inprocess', title: 'Build in public', body: 'Roadmaps + a process log for every project, synced with inprocess.world if you connect. Same editor as your world page’s In Process tab.', place: 'right' },
-  { target: 'tour-hq-members', title: 'Bring your crew', body: 'Invite builders and collaborators — they can build projects, post process updates, and shape the world with you. Done — go build. ✦', place: 'right', nextLabel: 'Done' },
+  { target: 'tour-hq-patrons', title: 'See what patrons fund', body: 'Patrons summarizes every open goal. Funding details stay attached to the exact project or milestone they unlock.', place: 'right' },
+  { target: 'tour-hq-builders', title: 'Bring in builders', body: 'Invite worldbuilders and collaborators, then make their permissions clear.', place: 'right' },
+  { target: 'tour-hq-about', title: 'Shape the public story', body: 'About holds the world image, description, tools, and social links. Done — go build. ✦', place: 'right', nextLabel: 'Done' },
 ];
 
 /* ── Context ─────────────────────────────────────────────────── */
@@ -62,7 +63,6 @@ export default function WorldDashboardLayout({
 
   const [world, setWorld] = useState<WorldData | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [members, setMembers] = useState<WorldData['members']>([]);
@@ -115,14 +115,10 @@ export default function WorldDashboardLayout({
   /* Authorization check — any member can view, only owners/builders can edit */
   const currentMember = world && currentUserId ? world.members.find(m => m.userId === currentUserId) : null;
   const isMember = !!currentMember;
+  const authorized = isMember;
   const isOwner = currentMember?.role === 'owner';
   const isBuilder = isOwner || currentMember?.role === 'world_builder';
   const currentUserRole = currentMember?.role || '';
-
-  useEffect(() => {
-    if (world && currentUserId)
-      setAuthorized(isMember);
-  }, [world, currentUserId, isMember]);
 
   /* If the slug doesn't resolve to a world, bounce back to the worlds list
      after a moment (e.g. a stale/typed URL like /dashboard/worlds/details). */
@@ -188,52 +184,48 @@ export default function WorldDashboardLayout({
         currentUserRole,
       }}
     >
-      {/* World identity header — shared by every manage subpage so you always
-          know which world you're editing. */}
-      <div className="border border-ink/[0.08] rounded-lg overflow-hidden mb-6">
-        <div className="bg-lime px-5 py-4 flex items-center justify-between gap-3">
+      {/* A compact identity rail keeps context without turning every editor
+          into another marketing hero. */}
+      <div className="border border-ink/[0.1] rounded-xl px-3.5 py-3 sm:px-4 mb-5 bg-ink/[0.015] flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {imageUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={imageUrl} alt="" className="w-11 h-11 rounded-sm object-cover border border-obsidian/20 shrink-0" />
+              <img src={imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-ink/10 shrink-0" />
             ) : (
-              <div className="w-11 h-11 rounded-sm bg-obsidian flex items-center justify-center shrink-0">
-                <span className="font-basement text-[18px] text-lime">{world.title[0]?.toUpperCase()}</span>
+              <div className="w-10 h-10 rounded-lg bg-lime flex items-center justify-center shrink-0">
+                <span className="font-basement text-[17px] text-obsidian">{world.title[0]?.toUpperCase()}</span>
               </div>
             )}
             <div className="min-w-0">
-              <span className="font-mono text-[10px] uppercase tracking-[2px] text-obsidian/50 block">topia://world-manage</span>
-              {/* Wraps instead of truncating — long titles get smaller on
-                  phones and break across lines, never "TEST WI." */}
-              <h1 className="font-basement font-black text-[clamp(16px,4.5vw,28px)] uppercase leading-[1] text-obsidian mt-0.5 break-words [text-wrap:balance]">
+              <span className="font-mono text-[9px] uppercase tracking-[2px] text-ink/35 block">Manage world</span>
+              <h1 className="font-basement font-black text-[clamp(16px,3vw,21px)] uppercase leading-none text-ink mt-1 truncate">
                 {world.title}
               </h1>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="font-mono text-[10px] uppercase tracking-[2px] text-obsidian/60 hidden sm:block">
-              {currentUserRole === 'owner' ? 'Owner' : currentUserRole === 'world_builder' ? 'Builder' : 'Collab'}
+            <span className="font-mono text-[9px] uppercase tracking-[1.5px] text-ink/40 hidden md:block">
+              {currentUserRole === 'owner' ? 'Lead worldbuilder' : currentUserRole === 'world_builder' ? 'Worldbuilder' : 'Collaborator'}
             </span>
             <a
               href={`/worlds/${slug}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-[11px] uppercase tracking-[2px] bg-obsidian text-lime px-3 py-1.5 rounded-sm hover:opacity-90 transition no-underline font-bold"
+              className="min-h-9 inline-flex items-center font-mono text-[10px] uppercase tracking-[1.5px] bg-lime text-obsidian px-3 rounded-md hover:opacity-90 transition no-underline font-bold"
             >
-              View ↗
+              Public view ↗
             </a>
             {isBuilder && (
               <button
                 onClick={() => replayTour('world-hq')}
                 title="Replay the tour"
                 aria-label="Replay the tour"
-                className="font-mono text-[11px] uppercase tracking-[2px] border border-obsidian/25 text-obsidian/60 px-2.5 py-1.5 rounded-sm hover:text-obsidian transition cursor-pointer bg-transparent"
+                className="w-9 h-9 font-mono text-[11px] border border-ink/15 text-ink/45 rounded-md hover:text-ink hover:border-ink/35 transition cursor-pointer bg-transparent"
               >
                 ?
               </button>
             )}
           </div>
-        </div>
       </div>
       {/* The assistant is the go-to: tell it what to change, it does it or
           opens the right builder. Sits on every manage subpage. */}

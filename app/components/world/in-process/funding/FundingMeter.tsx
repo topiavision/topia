@@ -66,10 +66,10 @@ export function FundingMeter({
           ) : (
             /* No target amount — show what has come in rather than a
              * meaningless percentage. */
-            <><span className="font-bold">{usd(raisedCents)}</span><span className="text-ink/45"> backed</span></>
+            <><span className="font-bold">{usd(raisedCents)}</span><span className="text-ink/45"> funded</span></>
           )}
           {typeof patronCount === 'number' && patronCount > 0 && (
-            <span className="text-ink/45"> · {patronCount} {patronCount === 1 ? 'backer' : 'backers'}</span>
+            <span className="text-ink/45"> · {patronCount} {patronCount === 1 ? 'patron' : 'patrons'}</span>
           )}
         </p>
       )}
