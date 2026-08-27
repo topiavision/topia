@@ -250,7 +250,7 @@ export async function scrapeGrantPage(url: string): Promise<ScrapedResult> {
 
   // Extract grant name (always clean trailing site name suffixes)
   const rawName = ogTitle || pageTitle || h1;
-  let grantName = rawName ? cleanTitle(rawName) : null;
+  const grantName = rawName ? cleanTitle(rawName) : null;
   if (!grantName) {
     warnings.push('Could not determine grant name');
   }

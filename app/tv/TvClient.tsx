@@ -266,7 +266,6 @@ export default function TvClient({ initialEpisodes }: { initialEpisodes: Episode
                     />
                   ) : (
                     // Idle channel — bumper loop
-                    /* eslint-disable-next-line @next/next/no-element-img */
                     <video src="/brand/vhs-loop.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
                   )}
 
